@@ -13,10 +13,68 @@ import {
 
 const CAPTURE_FILTER = { urls: ["<all_urls>"] };
 const CAPTURE_OPTIONS = ["requestHeaders", "extraHeaders"];
+const pendingRedirects = new Map();
 let appliedRuleWriteSignature = "";
 let i18nReady = null;
 
 chrome.webRequest.onBeforeSendHeaders.addListener(captureSourceRequest, CAPTURE_FILTER, CAPTURE_OPTIONS);
+
+chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
+  if (!details.redirectUrl) return;
+
+  await ensureI18nReady();
+  const rules = await getRedirectRules();
+  const matchedRule = rules.find(rule => {
+    if (!rule.enabled || !rule.sourcePattern || !rule.targetUrl) return false;
+    try {
+      return buildSourceMatcher(rule.sourcePattern, rule.patternType)(details.url);
+    } catch (_error) {
+      return false;
+    }
+  });
+
+  if (matchedRule) {
+    pendingRedirects.set(details.requestId, {
+      ruleId: matchedRule.id,
+      ruleName: matchedRule.name || t("options.rules.unnamed"),
+      originalUrl: details.url,
+      redirectUrl: details.redirectUrl,
+      tabId: details.tabId
+    });
+  }
+}, CAPTURE_FILTER);
+
+chrome.webRequest.onCompleted.addListener(async (details) => {
+  const info = pendingRedirects.get(details.requestId);
+
+  if (info) {
+    pendingRedirects.delete(details.requestId);
+    await appendDiagnosticLog("network_redirect_success", "info", {
+      ruleName: info.ruleName,
+      originalUrl: info.originalUrl,
+      redirectUrl: info.redirectUrl,
+      statusCode: details.statusCode
+    });
+    
+    showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+  }
+}, CAPTURE_FILTER);
+
+chrome.webRequest.onErrorOccurred.addListener(async (details) => {
+  const info = pendingRedirects.get(details.requestId);
+
+  if (info) {
+    pendingRedirects.delete(details.requestId);
+    await appendDiagnosticLog("network_redirect_error", "error", {
+      ruleName: info.ruleName,
+      originalUrl: info.originalUrl,
+      redirectUrl: info.redirectUrl,
+      error: details.error
+    });
+    
+    showToastInTab(info.tabId, "error", `Altreurl Error: ${info.ruleName}`, `${details.error} for ${info.redirectUrl}`);
+  }
+}, CAPTURE_FILTER);
 
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureI18nReady();
@@ -420,10 +478,133 @@ async function buildCapturedRule(rule, details) {
     nextRule.syncedCookieHeader = await buildCookieHeader(details.url);
   }
 
+  const missingSyncs = [];
+  if (rule.syncHeaders && nextRule.syncedHeaders.length === 0) missingSyncs.push("headers");
+  if (rule.syncAuthorization && !nextRule.syncedAuthorization) missingSyncs.push("authorization");
+  if (rule.syncCookies && !nextRule.syncedCookieHeader) missingSyncs.push("cookies");
+
+  if (missingSyncs.length > 0) {
+    await appendDiagnosticLog("sync_missing_credentials", "warn", {
+      ruleId: nextRule.id,
+      ruleName: nextRule.name || t("options.rules.unnamed"),
+      missing: missingSyncs,
+      source: "request"
+    });
+    
+    showToastInTab(details.tabId, "warn", `Altreurl Warning: ${nextRule.name || "Unnamed"}`, `Missing requested credentials: ${missingSyncs.join(", ")}`);
+  }
+
   return nextRule;
 }
 
 async function buildCookieHeader(url) {
   const cookies = await chrome.cookies.getAll({ url });
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+}
+
+async function showToastInTab(tabId, type, message, detail) {
+  if (!tabId || tabId === -1) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (type, message, detail) => {
+        const containerId = "altreurl-toast-container";
+        let container = document.getElementById(containerId);
+
+        if (!container) {
+          container = document.createElement("div");
+          container.id = containerId;
+          Object.assign(container.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: "2147483647",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            pointerEvents: "none",
+            fontFamily: "system-ui, -apple-system, sans-serif"
+          });
+          document.body.appendChild(container);
+        }
+
+        const toast = document.createElement("div");
+        let borderColor = "#10b981";
+        let icon = "✅";
+        
+        if (type === "error") {
+          borderColor = "#ef4444";
+          icon = "❌";
+        } else if (type === "warn") {
+          borderColor = "#f59e0b";
+          icon = "⚠️";
+        }
+
+        Object.assign(toast.style, {
+          background: "linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(15, 15, 15, 0.95))",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderLeft: `4px solid ${borderColor}`,
+          borderRadius: "8px",
+          padding: "16px",
+          color: "#ffffff",
+          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+          width: "340px",
+          opacity: "0",
+          transform: "translateY(20px)",
+          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+          pointerEvents: "auto"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontWeight: "600",
+          fontSize: "14px",
+          color: "#f3f4f6",
+          lineHeight: "1.2"
+        });
+        header.textContent = `${icon} ${message}`;
+        toast.appendChild(header);
+
+        if (detail) {
+          const body = document.createElement("div");
+          Object.assign(body.style, {
+            fontSize: "12px",
+            color: "#9ca3af",
+            lineHeight: "1.4",
+            wordBreak: "break-all"
+          });
+          body.textContent = detail;
+          toast.appendChild(body);
+        }
+
+        container.appendChild(toast);
+
+        requestAnimationFrame(() => {
+          toast.style.opacity = "1";
+          toast.style.transform = "translateY(0)";
+        });
+
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateY(10px)";
+          setTimeout(() => {
+            if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+            }
+          }, 400);
+        }, 5000);
+      },
+      args: [type, message, detail]
+    });
+  } catch (_error) {
+    // Tab might be closed or restricted (like chrome:// URLs)
+  }
 }

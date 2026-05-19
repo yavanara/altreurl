@@ -92,11 +92,7 @@ export function isWaitingForSyncCapture(rule) {
     return false;
   }
 
-  return Boolean(
-    (canSyncHeaders(rule) && rule.syncHeaders && normalizeSyncedHeaders(rule.syncedHeaders).length === 0) ||
-    (rule.syncAuthorization && !rule.syncedAuthorization) ||
-    (rule.syncCookies && !rule.syncedCookieHeader)
-  );
+  return !rule.lastSyncedAt;
 }
 
 export function buildSourceMatcher(sourcePattern, patternType = PATTERN_TYPES.wildcard) {
