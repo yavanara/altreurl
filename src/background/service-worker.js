@@ -24,13 +24,30 @@ chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
 
   await ensureI18nReady();
   const rules = await getRedirectRules();
-  const matchedRule = rules.find(rule => {
+  const candidateRules = rules.filter(rule => {
     if (!rule.enabled || !rule.sourcePattern || !rule.targetUrl) return false;
     try {
       return buildSourceMatcher(rule.sourcePattern, rule.patternType)(details.url);
     } catch (_error) {
       return false;
     }
+  });
+
+  if (candidateRules.length === 0) return;
+
+  let isIncognito = false;
+  if (details.tabId !== -1) {
+    try {
+      const tab = await chrome.tabs.get(details.tabId);
+      isIncognito = Boolean(tab?.incognito);
+    } catch (_e) {
+      // Ignore if tab is not found
+    }
+  }
+
+  const matchedRule = candidateRules.find(rule => {
+    if (!hasSyncEnabled(rule)) return true;
+    return isIncognito ? Boolean(rule.incognitoLastSyncedAt) : Boolean(rule.lastSyncedAt);
   });
 
   if (matchedRule) {
