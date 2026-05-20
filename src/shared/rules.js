@@ -579,8 +579,10 @@ function validateHeaderConditionUniqueness(headerCondition, rule, seenHeaderCond
   const signature = getConditionSignature(headerCondition);
   const currentScope = getTargetConflictScope(rule.targetUrl, rule.patternType);
   const previousRule = [...seenHeaderConditions.values()].find((entry) => (
-    entry.signature === signature ||
-    doTargetScopesOverlap(entry.scope, currentScope)
+    entry.rule.id !== rule.id && (
+      entry.signature === signature ||
+      doTargetScopesOverlap(entry.scope, currentScope)
+    )
   ))?.rule;
 
   if (previousRule) {
