@@ -2,7 +2,8 @@ export const STORAGE_KEYS = {
   rules: "redirectRules",
   theme: "themePreference",
   applyError: "altreurlApplyError",
-  logs: "altreurlLogs"
+  logs: "altreurlLogs",
+  successNotificationsEnabled: "successNotificationsEnabled"
 };
 
 const MAX_LOG_ENTRIES = 100;
@@ -20,6 +21,15 @@ export async function getThemePreference() {
 export async function saveThemePreference(themePreference) {
   const nextThemePreference = ["system", "light", "dark"].includes(themePreference) ? themePreference : "system";
   await chrome.storage.local.set({ [STORAGE_KEYS.theme]: nextThemePreference });
+}
+
+export async function getSuccessNotificationsEnabled() {
+  const result = await chrome.storage.local.get({ [STORAGE_KEYS.successNotificationsEnabled]: true });
+  return Boolean(result[STORAGE_KEYS.successNotificationsEnabled]);
+}
+
+export async function saveSuccessNotificationsEnabled(enabled) {
+  await chrome.storage.local.set({ [STORAGE_KEYS.successNotificationsEnabled]: Boolean(enabled) });
 }
 
 export async function appendDiagnosticLog(event, severity = "info", details = {}) {
