@@ -95,6 +95,25 @@ chrome.runtime.onStartup.addListener(async () => {
   await prepareAndApplyRules(rules, { persistHydratedRules: true });
 });
 
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.url) {
+    try {
+      const rules = await getRedirectRules();
+      const hasAutoSyncRules = rules.some((rule) =>
+        rule.enabled &&
+        hasSyncEnabled(rule) &&
+        [CREDENTIAL_SOURCES.storage, CREDENTIAL_SOURCES.cookie].includes(normalizeCredentialSource(rule))
+      );
+
+      if (hasAutoSyncRules) {
+        await prepareAndApplyRules(rules, { persistHydratedRules: true });
+      }
+    } catch (_error) {
+      // Ignore background tab queries/injection warnings for unsupported URLs
+    }
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "SAVE_RULES") {
     return false;
