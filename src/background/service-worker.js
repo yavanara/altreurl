@@ -56,9 +56,13 @@ chrome.webRequest.onCompleted.addListener(async (details) => {
       statusCode: details.statusCode
     });
     
-    const successNotificationsEnabled = await getSuccessNotificationsEnabled();
-    if (successNotificationsEnabled) {
-      showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+    if (details.statusCode === 401) {
+      await resetRuleSync(info.ruleId, info.ruleName, info.tabId);
+    } else {
+      const successNotificationsEnabled = await getSuccessNotificationsEnabled();
+      if (successNotificationsEnabled) {
+        showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+      }
     }
   }
 }, CAPTURE_FILTER);
@@ -610,4 +614,46 @@ async function showToastInTab(tabId, type, message, detail) {
   } catch (_error) {
     // Tab might be closed or restricted (like chrome:// URLs)
   }
+}
+
+async function resetRuleSync(ruleId, ruleName, tabId) {
+  const rules = await getRedirectRules();
+  const ruleIndex = rules.findIndex((r) => r.id === ruleId);
+  if (ruleIndex === -1) return;
+
+  const rule = rules[ruleIndex];
+  if (!rule.lastSyncedAt) return;
+
+  const updatedRule = {
+    ...rule,
+    syncedHeaders: [],
+    syncedAuthorization: "",
+    syncedCookieHeader: "",
+    lastSyncedAt: ""
+  };
+
+  const nextRules = [...rules];
+  nextRules[ruleIndex] = updatedRule;
+
+  await appendDiagnosticLog("sync_reset_expired", "warn", {
+    ruleId: rule.id,
+    ruleName: ruleName,
+    reason: "401 Unauthorized on redirect target"
+  });
+
+  await prepareAndApplyRules(nextRules);
+
+  try {
+    rememberAppliedRuleWrite(nextRules);
+    await chrome.storage.local.set({ [STORAGE_KEYS.rules]: nextRules });
+  } catch (_error) {
+    // Fail silently if saving fails, but let the preparation persist if possible.
+  }
+
+  showToastInTab(
+    tabId,
+    "warn",
+    `Altreurl Warning: ${ruleName}`,
+    "Synced credentials expired (401). Resetting learning mode to capture fresh credentials."
+  );
 }
