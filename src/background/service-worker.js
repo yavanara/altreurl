@@ -217,7 +217,25 @@ async function prepareAndApplyRules(rules, options = {}) {
   await ensureI18nReady();
   const hydratedRules = await hydrateCredentialSourceRules(rules);
 
-  await applyDynamicRules(hydratedRules);
+  const normalTabIds = [];
+  const incognitoTabIds = [];
+  try {
+    const tabs = await chrome.tabs.query({});
+    tabs.forEach((tab) => {
+      if (tab.id) {
+        if (tab.incognito) {
+          incognitoTabIds.push(tab.id);
+        } else {
+          normalTabIds.push(tab.id);
+        }
+      }
+    });
+  } catch (_e) {
+    // Fail silently if tab querying is restricted
+  }
+
+  const tabGroups = { normalTabIds, incognitoTabIds };
+  await applyDynamicRules(hydratedRules, tabGroups);
   await clearApplyError();
   await appendDiagnosticLog("dynamic_rules_applied", "info", {
     ruleCount: hydratedRules.length,
@@ -341,41 +359,66 @@ async function hydrateFromBrowserStorage(rule) {
 
     const sourceOrigin = new URL(sourceUrl).origin;
     const sourceTabs = await chrome.tabs.query({ url: `${sourceOrigin}/*` });
-    const sourceTab = sourceTabs.find((tab) => tab.id);
 
-    if (!sourceTab) {
+    if (sourceTabs.length === 0) {
       return rule;
     }
 
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId: sourceTab.id },
-      args: [{
-        area: rule.storageArea || "localStorage",
-        authorizationKey: rule.authorizationKey || "",
-        headersKey: rule.headersKey || ""
-      }],
-      func: ({ area, authorizationKey, headersKey }) => {
-        const storage = area === "sessionStorage" ? window.sessionStorage : window.localStorage;
+    let nextRule = { ...rule };
 
-        return {
-          authorization: authorizationKey ? storage.getItem(authorizationKey) || "" : "",
-          headers: headersKey ? storage.getItem(headersKey) || "" : ""
-        };
+    for (const sourceTab of sourceTabs) {
+      if (!sourceTab.id) continue;
+
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: sourceTab.id },
+          args: [{
+            area: rule.storageArea || "localStorage",
+            authorizationKey: rule.authorizationKey || "",
+            headersKey: rule.headersKey || ""
+          }],
+          func: ({ area, authorizationKey, headersKey }) => {
+            const storage = area === "sessionStorage" ? window.sessionStorage : window.localStorage;
+
+            return {
+              authorization: authorizationKey ? storage.getItem(authorizationKey) || "" : "",
+              headers: headersKey ? storage.getItem(headersKey) || "" : ""
+            };
+          }
+        });
+
+        const storageValues = result?.result || {};
+        const isIncognito = sourceTab.incognito;
+
+        const authValue = rule.syncAuthorization && storageValues.authorization
+          ? formatAuthorizationValue(storageValues.authorization, rule.authorizationPrefix)
+          : (isIncognito ? nextRule.incognitoSyncedAuthorization : nextRule.syncedAuthorization) || "";
+
+        const headersValue = rule.syncHeaders && storageValues.headers
+          ? parseHeaderValue(storageValues.headers)
+          : (isIncognito ? nextRule.incognitoSyncedHeaders : nextRule.syncedHeaders) || [];
+
+        const cookiesValue = rule.syncCookies
+          ? await buildCookieHeaderFromRule(nextRule, sourceUrl, sourceTab.cookieStoreId)
+          : (isIncognito ? nextRule.incognitoSyncedCookieHeader : nextRule.syncedCookieHeader) || "";
+
+        if (isIncognito) {
+          nextRule.incognitoSyncedAuthorization = authValue;
+          nextRule.incognitoSyncedHeaders = headersValue;
+          nextRule.incognitoSyncedCookieHeader = cookiesValue;
+          nextRule.incognitoLastSyncedAt = new Date().toISOString();
+        } else {
+          nextRule.syncedAuthorization = authValue;
+          nextRule.syncedHeaders = headersValue;
+          nextRule.syncedCookieHeader = cookiesValue;
+          nextRule.lastSyncedAt = new Date().toISOString();
+        }
+      } catch (_tabError) {
+        // Tab might be restricted or loading, skip
       }
-    });
-    const storageValues = result?.result || {};
-    const nextRule = {
-      ...rule,
-      syncedAuthorization: rule.syncAuthorization && storageValues.authorization
-        ? formatAuthorizationValue(storageValues.authorization, rule.authorizationPrefix)
-        : rule.syncedAuthorization || "",
-      syncedHeaders: rule.syncHeaders && storageValues.headers
-        ? parseHeaderValue(storageValues.headers)
-        : rule.syncedHeaders || [],
-      syncedCookieHeader: rule.syncCookies ? await buildCookieHeaderFromRule(rule, sourceUrl) : rule.syncedCookieHeader || ""
-    };
+    }
 
-    return markRuleSyncedIfReady(nextRule);
+    return nextRule;
   } catch (_error) {
     return rule;
   }
@@ -388,31 +431,63 @@ async function hydrateFromCookies(rule) {
     return rule;
   }
 
-  const cookies = await chrome.cookies.getAll({ url: sourceUrl });
-  const cookieNames = parseCsv(rule.cookieNames);
-  const selectedCookies = cookieNames.length > 0
-    ? cookies.filter((cookie) => cookieNames.includes(cookie.name))
-    : cookies;
-  const authorizationCookie = rule.authorizationKey
-    ? cookies.find((cookie) => cookie.name === rule.authorizationKey)
-    : null;
-  const nextRule = {
-    ...rule,
-    syncedAuthorization: rule.syncAuthorization && authorizationCookie?.value
-      ? formatAuthorizationValue(authorizationCookie.value, rule.authorizationPrefix)
-      : rule.syncedAuthorization || "",
-    syncedCookieHeader: rule.syncCookies
-      ? selectedCookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
-      : rule.syncedCookieHeader || ""
-  };
+  const sourceOrigin = new URL(sourceUrl).origin;
+  const sourceTabs = await chrome.tabs.query({ url: `${sourceOrigin}/*` });
 
-  return markRuleSyncedIfReady(nextRule);
+  if (sourceTabs.length === 0) {
+    return hydrateFromCookiesForStore(rule, sourceUrl, null, false);
+  }
+
+  let nextRule = { ...rule };
+
+  for (const sourceTab of sourceTabs) {
+    nextRule = await hydrateFromCookiesForStore(nextRule, sourceUrl, sourceTab.cookieStoreId, sourceTab.incognito);
+  }
+
+  return nextRule;
 }
 
-function markRuleSyncedIfReady(nextRule) {
-  return isWaitingForSyncCapture(nextRule)
-    ? nextRule
-    : { ...nextRule, lastSyncedAt: new Date().toISOString() };
+async function hydrateFromCookiesForStore(rule, sourceUrl, storeId, isIncognito) {
+  try {
+    const queryDetails = { url: sourceUrl };
+    if (storeId) {
+      queryDetails.storeId = storeId;
+    }
+    const cookies = await chrome.cookies.getAll(queryDetails);
+    const cookieNames = parseCsv(rule.cookieNames);
+    const selectedCookies = cookieNames.length > 0
+      ? cookies.filter((cookie) => cookieNames.includes(cookie.name))
+      : cookies;
+    const authorizationCookie = rule.authorizationKey
+      ? cookies.find((cookie) => cookie.name === rule.authorizationKey)
+      : null;
+
+    const authValue = rule.syncAuthorization && authorizationCookie?.value
+      ? formatAuthorizationValue(authorizationCookie.value, rule.authorizationPrefix)
+      : (isIncognito ? rule.incognitoSyncedAuthorization : rule.syncedAuthorization) || "";
+
+    const cookiesValue = rule.syncCookies
+      ? selectedCookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
+      : (isIncognito ? rule.incognitoSyncedCookieHeader : rule.syncedCookieHeader) || "";
+
+    if (isIncognito) {
+      return {
+        ...rule,
+        incognitoSyncedAuthorization: authValue,
+        incognitoSyncedCookieHeader: cookiesValue,
+        incognitoLastSyncedAt: new Date().toISOString()
+      };
+    } else {
+      return {
+        ...rule,
+        syncedAuthorization: authValue,
+        syncedCookieHeader: cookiesValue,
+        lastSyncedAt: new Date().toISOString()
+      };
+    }
+  } catch (_error) {
+    return rule;
+  }
 }
 
 function parseHeaderValue(rawHeaders) {
@@ -429,13 +504,13 @@ function parseHeaderValue(rawHeaders) {
       );
     }
   } catch (_error) {
-    return [];
+    // Fail silently if not parseable
   }
 
   return [];
 }
 
-function formatAuthorizationValue(value, prefix = "") {
+function formatAuthorizationValue(value, prefix) {
   const trimmedValue = String(value || "").trim();
   const trimmedPrefix = String(prefix || "").trim();
 
@@ -453,9 +528,13 @@ function parseCsv(value = "") {
     .filter(Boolean);
 }
 
-async function buildCookieHeaderFromRule(rule, sourceUrl) {
+async function buildCookieHeaderFromRule(rule, sourceUrl, storeId = null) {
   const cookieNames = parseCsv(rule.cookieNames);
-  const cookies = await chrome.cookies.getAll({ url: sourceUrl });
+  const queryDetails = { url: sourceUrl };
+  if (storeId) {
+    queryDetails.storeId = storeId;
+  }
+  const cookies = await chrome.cookies.getAll(queryDetails);
   const selectedCookies = cookieNames.length > 0
     ? cookies.filter((cookie) => cookieNames.includes(cookie.name))
     : cookies;
@@ -492,22 +571,44 @@ async function buildCapturedRule(rule, details) {
   const authorizationHeader = requestHeaders.find((header) => header.name.toLowerCase() === "authorization");
   const cookieHeader = requestHeaders.find((header) => header.name.toLowerCase() === "cookie");
 
-  const nextRule = {
-    ...rule,
-    syncedHeaders: rule.syncHeaders ? normalizeHeaderRows(capturedHeaders) : rule.syncedHeaders || [],
-    syncedAuthorization: rule.syncAuthorization ? authorizationHeader?.value || rule.syncedAuthorization || "" : rule.syncedAuthorization || "",
-    syncedCookieHeader: rule.syncCookies ? cookieHeader?.value || rule.syncedCookieHeader || "" : rule.syncedCookieHeader || "",
-    lastSyncedAt: new Date().toISOString()
-  };
+  let isIncognito = false;
+  let storeId = null;
+  if (details.tabId !== -1) {
+    try {
+      const tab = await chrome.tabs.get(details.tabId);
+      isIncognito = Boolean(tab?.incognito);
+      storeId = tab?.cookieStoreId || null;
+    } catch (_e) {
+      // Ignore if tab is not found
+    }
+  }
 
-  if (rule.syncCookies && !nextRule.syncedCookieHeader) {
-    nextRule.syncedCookieHeader = await buildCookieHeader(details.url);
+  const authValue = rule.syncAuthorization ? authorizationHeader?.value || "" : "";
+  const headersValue = rule.syncHeaders ? normalizeHeaderRows(capturedHeaders) : [];
+  let cookiesValue = rule.syncCookies ? cookieHeader?.value || "" : "";
+
+  if (rule.syncCookies && !cookiesValue) {
+    cookiesValue = await buildCookieHeader(details.url, storeId);
+  }
+
+  const nextRule = { ...rule };
+
+  if (isIncognito) {
+    nextRule.incognitoSyncedHeaders = headersValue.length > 0 ? headersValue : rule.incognitoSyncedHeaders || [];
+    nextRule.incognitoSyncedAuthorization = authValue || rule.incognitoSyncedAuthorization || "";
+    nextRule.incognitoSyncedCookieHeader = cookiesValue || rule.incognitoSyncedCookieHeader || "";
+    nextRule.incognitoLastSyncedAt = new Date().toISOString();
+  } else {
+    nextRule.syncedHeaders = headersValue.length > 0 ? headersValue : rule.syncedHeaders || [];
+    nextRule.syncedAuthorization = authValue || rule.syncedAuthorization || "";
+    nextRule.syncedCookieHeader = cookiesValue || rule.syncedCookieHeader || "";
+    nextRule.lastSyncedAt = new Date().toISOString();
   }
 
   const missingSyncs = [];
-  if (rule.syncHeaders && nextRule.syncedHeaders.length === 0) missingSyncs.push("headers");
-  if (rule.syncAuthorization && !nextRule.syncedAuthorization) missingSyncs.push("authorization");
-  if (rule.syncCookies && !nextRule.syncedCookieHeader) missingSyncs.push("cookies");
+  if (rule.syncHeaders && (isIncognito ? nextRule.incognitoSyncedHeaders.length === 0 : nextRule.syncedHeaders.length === 0)) missingSyncs.push("headers");
+  if (rule.syncAuthorization && !(isIncognito ? nextRule.incognitoSyncedAuthorization : nextRule.syncedAuthorization)) missingSyncs.push("authorization");
+  if (rule.syncCookies && !(isIncognito ? nextRule.incognitoSyncedCookieHeader : nextRule.syncedCookieHeader)) missingSyncs.push("cookies");
 
   if (missingSyncs.length > 0) {
     await appendDiagnosticLog("sync_missing_credentials", "warn", {
@@ -523,8 +624,12 @@ async function buildCapturedRule(rule, details) {
   return nextRule;
 }
 
-async function buildCookieHeader(url) {
-  const cookies = await chrome.cookies.getAll({ url });
+async function buildCookieHeader(url, storeId = null) {
+  const queryDetails = { url };
+  if (storeId) {
+    queryDetails.storeId = storeId;
+  }
+  const cookies = await chrome.cookies.getAll(queryDetails);
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
 }
 
@@ -641,15 +746,29 @@ async function resetRuleSync(ruleId, ruleName, tabId) {
   if (ruleIndex === -1) return;
 
   const rule = rules[ruleIndex];
-  if (!rule.lastSyncedAt) return;
 
-  const updatedRule = {
-    ...rule,
-    syncedHeaders: [],
-    syncedAuthorization: "",
-    syncedCookieHeader: "",
-    lastSyncedAt: ""
-  };
+  let isIncognito = false;
+  if (tabId !== -1) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      isIncognito = Boolean(tab?.incognito);
+    } catch (_e) {
+      // Ignore if tab is not found
+    }
+  }
+
+  const updatedRule = { ...rule };
+  if (isIncognito) {
+    updatedRule.incognitoSyncedHeaders = [];
+    updatedRule.incognitoSyncedAuthorization = "";
+    updatedRule.incognitoSyncedCookieHeader = "";
+    updatedRule.incognitoLastSyncedAt = "";
+  } else {
+    updatedRule.syncedHeaders = [];
+    updatedRule.syncedAuthorization = "";
+    updatedRule.syncedCookieHeader = "";
+    updatedRule.lastSyncedAt = "";
+  }
 
   const nextRules = [...rules];
   nextRules[ruleIndex] = updatedRule;
@@ -657,7 +776,7 @@ async function resetRuleSync(ruleId, ruleName, tabId) {
   await appendDiagnosticLog("sync_reset_expired", "warn", {
     ruleId: rule.id,
     ruleName: ruleName,
-    reason: "401 Unauthorized on redirect target"
+    reason: `401 Unauthorized on redirect target (${isIncognito ? "Incognito" : "Normal"})`
   });
 
   await prepareAndApplyRules(nextRules);
@@ -673,6 +792,6 @@ async function resetRuleSync(ruleId, ruleName, tabId) {
     tabId,
     "warn",
     `Altreurl Warning: ${ruleName}`,
-    "Synced credentials expired (401). Resetting learning mode to capture fresh credentials."
+    `Synced credentials expired (401) in ${isIncognito ? "Incognito" : "Normal"} tab. Resetting learning mode.`
   );
 }
