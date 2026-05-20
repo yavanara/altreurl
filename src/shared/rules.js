@@ -858,7 +858,19 @@ export function applyDynamicRules(configRules = [], tabGroups = { normalTabIds: 
 }
 
 async function applyDynamicRulesNow(configRules = [], tabGroups = { normalTabIds: [], incognitoTabIds: [] }) {
-  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+  // Clear legacy dynamic rules to ensure they don't conflict with session-scoped rules
+  try {
+    const legacyDynamicRules = await chrome.declarativeNetRequest.getDynamicRules();
+    if (legacyDynamicRules.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: legacyDynamicRules.map((rule) => rule.id)
+      });
+    }
+  } catch (_e) {
+    // Fail silently if dynamic rule clearing fails
+  }
+
+  const existingRules = await chrome.declarativeNetRequest.getSessionRules();
   const removeRuleIds = existingRules
     .map((rule) => rule.id);
   const addRules = buildDynamicRules(configRules, tabGroups);
@@ -876,7 +888,7 @@ async function applyDynamicRulesNow(configRules = [], tabGroups = { normalTabIds
   }
 
   try {
-    await chrome.declarativeNetRequest.updateDynamicRules({
+    await chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds,
       addRules
     });

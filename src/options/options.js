@@ -1513,7 +1513,7 @@ async function buildDiagnosticsPayload(options = {}) {
   const includeLogs = options.includeLogs !== false;
   const [storageResult, dynamicRules, logs] = await Promise.all([
     chrome.storage.local.get({ [STORAGE_KEYS.applyError]: null }),
-    chrome.declarativeNetRequest.getDynamicRules().catch(() => []),
+    chrome.declarativeNetRequest.getSessionRules().catch(() => []),
     includeLogs ? getDiagnosticLogs() : Promise.resolve([])
   ]);
   const manifest = chrome.runtime.getManifest();
