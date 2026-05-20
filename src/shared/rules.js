@@ -92,7 +92,7 @@ export function isWaitingForSyncCapture(rule) {
     return false;
   }
 
-  return !rule.lastSyncedAt;
+  return !rule.lastSyncedAt && !rule.incognitoLastSyncedAt;
 }
 
 export function buildSourceMatcher(sourcePattern, patternType = PATTERN_TYPES.wildcard) {
