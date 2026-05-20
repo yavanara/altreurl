@@ -63,6 +63,7 @@
   "popup.toast.enabled": "Rule enabled",
   "popup.toast.disabled": "Rule disabled",
   "popup.toast.ruleMissing": "Rule no longer exists. The popup has been refreshed.",
+  "popup.settings.notifications": "Redirect notifications",
   "popup.tooltip.status": "Status: {status}",
   "popup.tooltip.source": "Source URL pattern: {source}",
   "popup.tooltip.target": "Redirect target URL: {target}",
