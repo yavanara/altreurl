@@ -129,3 +129,69 @@
 .toast-stack--popup {
   max-width: min(320px, calc(100vw - 24px));
 }
+
+.popup-settings {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 2px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+.popup-settings span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.switch {
+  position: relative;
+  display: inline-block !important;
+  width: 36px;
+  height: 20px;
+  margin-bottom: 0;
+  gap: 0 !important;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--panel-soft);
+  border: 1px solid var(--line);
+  transition: .25s ease;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--muted);
+  transition: .25s ease;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--success-soft);
+  border-color: var(--success);
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
+  background-color: var(--success);
+}

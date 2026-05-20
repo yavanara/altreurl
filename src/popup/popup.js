@@ -1,5 +1,5 @@
 import { buildDynamicRules, getRuleSetIssuesByRuleId, normalizePatternType, PATTERN_TYPES } from "../shared/rules.js";
-import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS } from "../shared/storage.js";
+import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS, getSuccessNotificationsEnabled, saveSuccessNotificationsEnabled } from "../shared/storage.js";
 import { applyFavicons } from "../shared/favicon.js";
 import { getThemedIconPath } from "../shared/icon.js";
 import { initThemeControl } from "../shared/theme.js";
@@ -11,6 +11,7 @@ const activeRules = document.querySelector("#activeRules");
 const ruleSearch = document.querySelector("#ruleSearch");
 const openOptions = document.querySelector("#openOptions");
 const notifications = document.querySelector("#notifications");
+const toggleNotifications = document.querySelector("#toggleNotifications");
 const notify = createNotifier(notifications, { scope: "popup" });
 
 await initI18n();
@@ -20,6 +21,14 @@ let activeTabContext = await getActiveTabContext();
 applyTranslations();
 applyFavicons();
 await initThemeControl();
+
+// Initialize notification toggle state
+if (toggleNotifications) {
+  toggleNotifications.checked = await getSuccessNotificationsEnabled();
+  toggleNotifications.addEventListener("change", async () => {
+    await saveSuccessNotificationsEnabled(toggleNotifications.checked);
+  });
+}
 
 function renderPopup() {
   const attentionIds = getRuleAttentionIds(rules);
