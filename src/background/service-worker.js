@@ -1,4 +1,4 @@
-import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS } from "../shared/storage.js";
+import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS, getSuccessNotificationsEnabled } from "../shared/storage.js";
 import { initI18n, t } from "../shared/i18n.js";
 import {
   applyDynamicRules,
@@ -56,7 +56,10 @@ chrome.webRequest.onCompleted.addListener(async (details) => {
       statusCode: details.statusCode
     });
     
-    showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+    const successNotificationsEnabled = await getSuccessNotificationsEnabled();
+    if (successNotificationsEnabled) {
+      showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+    }
   }
 }, CAPTURE_FILTER);
 
