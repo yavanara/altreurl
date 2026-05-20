@@ -180,6 +180,8 @@ async function awaitI18nAndApplyRules(rules) {
 }
 
 async function captureSourceRequest(details) {
+  if (details.method === "OPTIONS") return;
+
   await ensureI18nReady();
   const rules = await getRedirectRules();
   const matchingRules = rules.filter((rule) => {
