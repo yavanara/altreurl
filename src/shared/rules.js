@@ -669,13 +669,15 @@ function mergeRequestHeaders(...headerGroups) {
   return [...headersByName.values()];
 }
 
-function getRequestHeadersForRule(rule) {
-  const syncedHeaders = canSyncHeaders(rule) && rule.syncHeaders ? normalizeSyncedHeaders(rule.syncedHeaders) : [];
-  const syncedAuthorization = rule.syncAuthorization && rule.syncedAuthorization
-    ? [{ name: "Authorization", value: rule.syncedAuthorization }]
+function getRequestHeadersForRule(rule, isIncognito = false) {
+  const syncedHeaders = canSyncHeaders(rule) && rule.syncHeaders
+    ? normalizeSyncedHeaders(isIncognito ? rule.incognitoSyncedHeaders : rule.syncedHeaders)
     : [];
-  const syncedCookieHeader = rule.syncCookies && rule.syncedCookieHeader
-    ? [{ name: "Cookie", value: rule.syncedCookieHeader }]
+  const syncedAuthorization = rule.syncAuthorization && (isIncognito ? rule.incognitoSyncedAuthorization : rule.syncedAuthorization)
+    ? [{ name: "Authorization", value: isIncognito ? rule.incognitoSyncedAuthorization : rule.syncedAuthorization }]
+    : [];
+  const syncedCookieHeader = rule.syncCookies && (isIncognito ? rule.incognitoSyncedCookieHeader : rule.syncedCookieHeader)
+    ? [{ name: "Cookie", value: isIncognito ? rule.incognitoSyncedCookieHeader : rule.syncedCookieHeader }]
     : [];
   const manualAuthorization = rule.authorization
     ? [{ name: "Authorization", value: rule.authorization }]
@@ -691,7 +693,7 @@ function getRequestHeadersForRule(rule) {
 }
 
 function hasPotentialCredentialHeaders(rule) {
-  if (getRequestHeadersForRule(rule).length > 0) {
+  if (getRequestHeadersForRule(rule, false).length > 0 || getRequestHeadersForRule(rule, true).length > 0) {
     return true;
   }
 
@@ -703,7 +705,7 @@ export function getGeneratedDynamicRuleCount(configRules = []) {
   return buildDynamicRules(configRules).length;
 }
 
-export function buildDynamicRules(configRules = []) {
+export function buildDynamicRules(configRules = [], tabGroups = { normalTabIds: [], incognitoTabIds: [] }) {
   validateRuleSet(configRules);
   const seenHeaderConditions = new Map();
   let nextRuleId = RULE_ID_BASE;
@@ -711,41 +713,130 @@ export function buildDynamicRules(configRules = []) {
 
   configRules
     .filter((rule) => rule.enabled && rule.sourcePattern && rule.targetUrl)
-    .filter((rule) => !isWaitingForSyncCapture(rule))
     .forEach((rule) => {
-      const requestHeaders = getRequestHeadersForRule(rule);
-
       const patternType = normalizePatternType(rule.patternType);
-      const redirectCondition = buildRedirectCondition(rule.sourcePattern, patternType);
-      const headerCondition = buildHeaderCondition(rule.sourcePattern, rule.targetUrl, patternType);
-      const redirectRules = shouldUseExactRedirectRules(rule.sourcePattern, rule.targetUrl, patternType)
-        ? buildExactRedirectRules(rule.sourcePattern, rule.targetUrl, nextRuleId)
-        : [{
-            id: nextRuleId,
-            priority: 1,
-            action: buildRedirectAction(rule.sourcePattern, rule.targetUrl, patternType),
-            condition: redirectCondition
-          }];
+      const normalSynced = !hasSyncEnabled(rule) || Boolean(rule.lastSyncedAt);
+      const incognitoSynced = !hasSyncEnabled(rule) || Boolean(rule.incognitoLastSyncedAt);
 
-      nextRuleId += redirectRules.length;
-      dynamicRules.push(...redirectRules);
+      const hasTabRestrictions = (tabGroups.normalTabIds && tabGroups.normalTabIds.length > 0) || 
+                                 (tabGroups.incognitoTabIds && tabGroups.incognitoTabIds.length > 0);
 
-      if (requestHeaders.length === 0) {
+      // Fallback global rules when no active tab groups are provided (e.g. from popup validation/tests)
+      if (!hasTabRestrictions) {
+        const isWaiting = hasSyncEnabled(rule) && !rule.lastSyncedAt;
+        if (!isWaiting) {
+          const redirectCondition = buildRedirectCondition(rule.sourcePattern, patternType);
+          const redirectRules = shouldUseExactRedirectRules(rule.sourcePattern, rule.targetUrl, patternType)
+            ? buildExactRedirectRules(rule.sourcePattern, rule.targetUrl, nextRuleId)
+            : [{
+                id: nextRuleId,
+                priority: 1,
+                action: buildRedirectAction(rule.sourcePattern, rule.targetUrl, patternType),
+                condition: redirectCondition
+              }];
+
+          nextRuleId += redirectRules.length;
+          dynamicRules.push(...redirectRules);
+
+          const requestHeaders = getRequestHeadersForRule(rule, false);
+          if (requestHeaders.length > 0) {
+            const headerCondition = buildHeaderCondition(rule.sourcePattern, rule.targetUrl, patternType);
+            validateHeaderConditionUniqueness(headerCondition, rule, seenHeaderConditions);
+
+            dynamicRules.push({
+              id: nextRuleId,
+              priority: 2,
+              action: {
+                type: "modifyHeaders",
+                requestHeaders
+              },
+              condition: headerCondition
+            });
+            nextRuleId += 1;
+          }
+        }
         return;
       }
 
-      validateHeaderConditionUniqueness(headerCondition, rule, seenHeaderConditions);
+      // Normal Tab Group Specific Rules
+      if (normalSynced && tabGroups.normalTabIds && tabGroups.normalTabIds.length > 0) {
+        const redirectCondition = buildRedirectCondition(rule.sourcePattern, patternType);
+        redirectCondition.tabIds = tabGroups.normalTabIds;
 
-      dynamicRules.push({
-        id: nextRuleId,
-        priority: 2,
-        action: {
-          type: "modifyHeaders",
-          requestHeaders
-        },
-        condition: headerCondition
-      });
-      nextRuleId += 1;
+        const redirectRules = shouldUseExactRedirectRules(rule.sourcePattern, rule.targetUrl, patternType)
+          ? buildExactRedirectRules(rule.sourcePattern, rule.targetUrl, nextRuleId)
+          : [{
+              id: nextRuleId,
+              priority: 1,
+              action: buildRedirectAction(rule.sourcePattern, rule.targetUrl, patternType),
+              condition: redirectCondition
+            }];
+
+        redirectRules.forEach((r) => {
+          r.condition.tabIds = tabGroups.normalTabIds;
+        });
+
+        nextRuleId += redirectRules.length;
+        dynamicRules.push(...redirectRules);
+
+        const requestHeaders = getRequestHeadersForRule(rule, false);
+        if (requestHeaders.length > 0) {
+          const headerCondition = buildHeaderCondition(rule.sourcePattern, rule.targetUrl, patternType);
+          headerCondition.tabIds = tabGroups.normalTabIds;
+          validateHeaderConditionUniqueness(headerCondition, rule, seenHeaderConditions);
+
+          dynamicRules.push({
+            id: nextRuleId,
+            priority: 2,
+            action: {
+              type: "modifyHeaders",
+              requestHeaders
+            },
+            condition: headerCondition
+          });
+          nextRuleId += 1;
+        }
+      }
+
+      // Incognito Tab Group Specific Rules
+      if (incognitoSynced && tabGroups.incognitoTabIds && tabGroups.incognitoTabIds.length > 0) {
+        const redirectCondition = buildRedirectCondition(rule.sourcePattern, patternType);
+        redirectCondition.tabIds = tabGroups.incognitoTabIds;
+
+        const redirectRules = shouldUseExactRedirectRules(rule.sourcePattern, rule.targetUrl, patternType)
+          ? buildExactRedirectRules(rule.sourcePattern, rule.targetUrl, nextRuleId)
+          : [{
+              id: nextRuleId,
+              priority: 1,
+              action: buildRedirectAction(rule.sourcePattern, rule.targetUrl, patternType),
+              condition: redirectCondition
+            }];
+
+        redirectRules.forEach((r) => {
+          r.condition.tabIds = tabGroups.incognitoTabIds;
+        });
+
+        nextRuleId += redirectRules.length;
+        dynamicRules.push(...redirectRules);
+
+        const requestHeaders = getRequestHeadersForRule(rule, true);
+        if (requestHeaders.length > 0) {
+          const headerCondition = buildHeaderCondition(rule.sourcePattern, rule.targetUrl, patternType);
+          headerCondition.tabIds = tabGroups.incognitoTabIds;
+          validateHeaderConditionUniqueness(headerCondition, rule, seenHeaderConditions);
+
+          dynamicRules.push({
+            id: nextRuleId,
+            priority: 2,
+            action: {
+              type: "modifyHeaders",
+              requestHeaders
+            },
+            condition: headerCondition
+          });
+          nextRuleId += 1;
+        }
+      }
     });
 
   return assignUniqueDynamicRuleIds(dynamicRules);
@@ -758,19 +849,19 @@ function assignUniqueDynamicRuleIds(dynamicRules) {
   }));
 }
 
-export function applyDynamicRules(configRules = []) {
+export function applyDynamicRules(configRules = [], tabGroups = { normalTabIds: [], incognitoTabIds: [] }) {
   dynamicRuleApplyQueue = dynamicRuleApplyQueue
     .catch(() => {})
-    .then(() => applyDynamicRulesNow(configRules));
+    .then(() => applyDynamicRulesNow(configRules, tabGroups));
 
   return dynamicRuleApplyQueue;
 }
 
-async function applyDynamicRulesNow(configRules = []) {
+async function applyDynamicRulesNow(configRules = [], tabGroups = { normalTabIds: [], incognitoTabIds: [] }) {
   const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
   const removeRuleIds = existingRules
     .map((rule) => rule.id);
-  const addRules = buildDynamicRules(configRules);
+  const addRules = buildDynamicRules(configRules, tabGroups);
   const dynamicRuleLimit = getDynamicRuleLimit();
 
   if (addRules.length > dynamicRuleLimit) {
