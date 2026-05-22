@@ -703,7 +703,7 @@ label select {
 }
 
 .rule-editor__header input,
-.sync-block input {
+.config-group input[type="checkbox"] {
   width: auto;
 }
 
@@ -812,30 +812,30 @@ label select {
   padding: 14px;
 }
 
-.sync-block {
+.config-group {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-soft);
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 16px;
 }
 
-.sync-block legend {
-  color: var(--muted);
+.config-group--details {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+.config-group__title {
+  color: var(--text);
   font-size: 13px;
-  padding: 0 4px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
-.sync-note {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.sync-block label {
+.sync-options label {
   align-items: center;
   color: var(--text);
   display: flex;

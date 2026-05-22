@@ -223,6 +223,8 @@
   "options.editor.browserStorage": "Browser storage",
   "options.editor.browserStorage.desc": "Reads tokens directly from Local/Session Storage. Instant redirects without double-refreshing. Best for React/Vue SPA.",
   "options.editor.cookie.desc": "Reads credentials directly from session Cookies. Instant redirects without double-refreshing. Best for cookie-based auth.",
+  "options.editor.extractionDetails": "Extraction details",
+  "options.editor.syncTargets": "Data to inject",
   "options.editor.storageArea": "Storage area",
   "options.editor.authorizationKey": "Authorization key/name",
   "options.editor.authorizationPrefix": "Authorization prefix",
