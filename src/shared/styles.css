@@ -835,17 +835,55 @@ label select {
   margin-bottom: 4px;
 }
 
-.sync-options label {
-  align-items: center;
-  color: var(--text);
-  display: flex;
-  gap: 8px;
-}
-
-.sync-options {
+.chip-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
+}
+
+.chip-label {
+  cursor: pointer;
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+}
+
+.chip-label input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.chip-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 13px;
+  transition: all 0.2s;
+  height: 100%;
+}
+
+.chip-label:hover .chip-content {
+  background: var(--accent-soft);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.chip-label input:checked + .chip-content {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.chip-label input:checked + .chip-content::before {
+  content: '✓';
+  font-weight: bold;
 }
 
 .source-cards {

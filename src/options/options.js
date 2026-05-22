@@ -654,6 +654,7 @@ function renderEditor() {
     headersKey: card.querySelector('[data-role="headersKeyField"]'),
     cookieNames: card.querySelector('[data-role="cookieNamesField"]')
   };
+  const sourceDetailsWrapper = card.querySelector('[data-role="sourceDetailsFields"]');
 
   card.querySelector('[data-field="enabled"]').checked = Boolean(rule.enabled);
   const editorStatusBadge = card.querySelector('[data-role="editorStatusBadge"]');
@@ -681,7 +682,7 @@ function renderEditor() {
   card.querySelector('[data-role="syncStatus"]').textContent = getSyncStatus(rule);
   updateCredentialModeVisibility(credentialModeInput.value, manualAuthorization, manualHeaders, syncOptions);
   const currentSourceValue = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
-  updateCredentialSourceVisibility(currentSourceValue, sourceFields, syncHeadersInput);
+  updateCredentialSourceVisibility(currentSourceValue, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
   renderInlineValidation(rule, card);
   renderSyncPreview(rule, syncPreview, syncTabs, syncPreviewContent);
 
@@ -692,6 +693,8 @@ function renderEditor() {
       }
 
       updateSelectedRuleFromEditor();
+      const currentSource = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
+      updateCredentialSourceVisibility(currentSource, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
@@ -702,6 +705,8 @@ function renderEditor() {
       }
 
       updateSelectedRuleFromEditor();
+      const currentSource = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
+      updateCredentialSourceVisibility(currentSource, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
@@ -735,7 +740,7 @@ function renderEditor() {
 
   credentialSourceInputs.forEach(input => {
     input.addEventListener("change", () => {
-      updateCredentialSourceVisibility(input.value, sourceFields, syncHeadersInput);
+      updateCredentialSourceVisibility(input.value, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
       updateSelectedRuleFromEditor();
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
@@ -929,26 +934,36 @@ function updateCredentialModeVisibility(credentialMode, manualAuthorization, man
   syncOptions.hidden = !isSyncMode;
 }
 
-function updateCredentialSourceVisibility(credentialSource, sourceFields, syncHeadersInput) {
+function updateCredentialSourceVisibility(credentialSource, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput) {
   const isRequestSource = credentialSource === CREDENTIAL_SOURCES.request;
   const isStorageSource = credentialSource === CREDENTIAL_SOURCES.storage;
   const isCookieSource = credentialSource === CREDENTIAL_SOURCES.cookie;
 
-  sourceFields.storageArea.hidden = !isStorageSource;
-  sourceFields.authorizationKey.hidden = isRequestSource;
-  sourceFields.authorizationPrefix.hidden = isRequestSource;
-  sourceFields.headersKey.hidden = !isStorageSource;
-  sourceFields.cookieNames.hidden = !isCookieSource;
-
   if (syncHeadersInput) {
     syncHeadersInput.disabled = isCookieSource;
-    syncHeadersInput.title = isCookieSource
-      ? t("options.sync.cookieSourceHeaders.title")
-      : t("options.sync.headersInput.title");
+    syncHeadersInput.title = isCookieSource ? t("options.sync.cookieSourceHeaders.title") : t("options.sync.headersInput.title");
+    if (isCookieSource && syncHeadersInput.checked) syncHeadersInput.checked = false;
+  }
+  
+  if (syncAuthorizationInput) {
+    syncAuthorizationInput.disabled = isCookieSource;
+    syncAuthorizationInput.title = isCookieSource ? t("options.sync.cookieSourceHeaders.title") : "";
+    if (isCookieSource && syncAuthorizationInput.checked) syncAuthorizationInput.checked = false;
+  }
 
-    if (isCookieSource && syncHeadersInput.checked) {
-      syncHeadersInput.checked = false;
-    }
+  const showStorageArea = isStorageSource && (syncHeadersInput?.checked || syncAuthorizationInput?.checked);
+  const showAuthKey = isStorageSource && syncAuthorizationInput?.checked;
+  const showHeadersKey = isStorageSource && syncHeadersInput?.checked;
+  const showCookieNames = isCookieSource && syncCookiesInput?.checked;
+
+  sourceFields.storageArea.hidden = !showStorageArea;
+  sourceFields.authorizationKey.hidden = !showAuthKey;
+  sourceFields.authorizationPrefix.hidden = !showAuthKey;
+  sourceFields.headersKey.hidden = !showHeadersKey;
+  sourceFields.cookieNames.hidden = !showCookieNames;
+
+  if (sourceDetailsWrapper) {
+    sourceDetailsWrapper.hidden = !showStorageArea && !showAuthKey && !showHeadersKey && !showCookieNames;
   }
 }
 

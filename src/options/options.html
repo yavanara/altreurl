@@ -410,9 +410,7 @@
           </div>
 
           <div class="config-group">
-            <div class="source-cards" role="radiogroup" aria-labelledby="credentialSourceLabel">
-              <p id="credentialSourceLabel" class="visually-hidden" data-i18n="options.editor.credentialSource"></p>
-              
+            <div class="source-cards" role="radiogroup" data-i18n-aria-label="options.editor.credentialSource">
               <label class="source-card">
                 <input type="radio" name="credentialSource" data-field="credentialSource" value="request">
                 <div class="source-card__content">
@@ -457,6 +455,24 @@
             </div>
           </div>
 
+          <div class="config-group config-group--targets">
+            <strong class="config-group__title" data-i18n="options.editor.syncTargets"></strong>
+            <div class="chip-group">
+              <label class="chip-label">
+                <input data-field="syncHeaders" type="checkbox">
+                <span class="chip-content" data-i18n="common.headers"></span>
+              </label>
+              <label class="chip-label">
+                <input data-field="syncAuthorization" type="checkbox">
+                <span class="chip-content" data-i18n="common.authorization"></span>
+              </label>
+              <label class="chip-label">
+                <input data-field="syncCookies" type="checkbox">
+                <span class="chip-content" data-i18n="options.editor.sessionCookies"></span>
+              </label>
+            </div>
+          </div>
+
           <div class="config-group config-group--details" data-role="sourceDetailsFields">
             <strong class="config-group__title" data-i18n="options.editor.extractionDetails"></strong>
             <div class="source-grid">
@@ -486,24 +502,6 @@
               <label class="span-2" data-role="cookieNamesField">
                 <span data-i18n="options.editor.cookieNames"></span>
                 <input data-field="cookieNames" type="text" data-i18n-placeholder="options.editor.cookieNames.placeholder">
-              </label>
-            </div>
-          </div>
-
-          <div class="config-group config-group--targets">
-            <strong class="config-group__title" data-i18n="options.editor.syncTargets"></strong>
-            <div class="sync-options">
-              <label>
-                <input data-field="syncHeaders" type="checkbox">
-                <span data-i18n="common.headers"></span>
-              </label>
-              <label>
-                <input data-field="syncAuthorization" type="checkbox">
-                <span data-i18n="common.authorization"></span>
-              </label>
-              <label>
-                <input data-field="syncCookies" type="checkbox">
-                <span data-i18n="options.editor.sessionCookies"></span>
               </label>
             </div>
           </div>
