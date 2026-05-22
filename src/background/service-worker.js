@@ -76,9 +76,13 @@ chrome.webRequest.onCompleted.addListener(async (details) => {
       statusCode: details.statusCode
     });
     
-    const successNotificationsEnabled = await getSuccessNotificationsEnabled();
-    if (successNotificationsEnabled) {
-      showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+    if (details.statusCode === 401) {
+      await resetRuleSync(info.ruleId, info.ruleName, info.tabId);
+    } else {
+      const successNotificationsEnabled = await getSuccessNotificationsEnabled();
+      if (successNotificationsEnabled) {
+        showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
+      }
     }
   }
 }, CAPTURE_FILTER);
