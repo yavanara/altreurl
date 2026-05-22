@@ -91,6 +91,11 @@ const notify = createNotifier(notifications, { scope: "options" });
 const bulkExportLabel = bulkExport.querySelector('[data-role="bulkExportLabel"]');
 
 await initI18n();
+
+const appVersionEl = document.querySelector("#appVersion");
+if (appVersionEl) {
+  appVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+}
 let rules = await getRedirectRules();
 let selectedRuleId = "";
 let isSavingRule = false;

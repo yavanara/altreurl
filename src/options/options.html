@@ -13,7 +13,10 @@
         <div class="brand">
           <img data-favicon="64" src="../shared/imgs/favicons/v2/Altreurl_64.png" alt="" width="48" height="48">
           <div>
-            <h1 data-i18n="app.name"></h1>
+            <h1>
+              <span data-i18n="app.name"></span>
+              <small id="appVersion" class="app-version"></small>
+            </h1>
             <p data-i18n="app.description"></p>
           </div>
         </div>
@@ -263,11 +266,15 @@
             <img data-icon="icons8-globe-32.png" src="../shared/imgs/icons/b/icons8-globe-32.png" alt="" width="16" height="16">
             <span data-i18n="options.footer.web"></span>
           </a>
+          <a class="footer-link" href="https://github.com/yavanara/altreurl/wiki" target="_blank" rel="noreferrer" data-i18n-title="options.footer.docs.title">
+            <img data-icon="icons8-book-32.png" src="../shared/imgs/icons/b/icons8-book-32.png" alt="" width="16" height="16">
+            <span data-i18n="options.footer.docs"></span>
+          </a>
           <a class="footer-link" href="https://github.com/yavanara/altreurl" target="_blank" rel="noreferrer" data-i18n-title="options.footer.repo.title">
             <img data-icon="icons8-github-32.png" src="../shared/imgs/icons/b/icons8-github-32.png" alt="" width="16" height="16">
             <span data-i18n="options.footer.repo"></span>
           </a>
-          <a class="footer-link" href="#" target="_blank" rel="noreferrer" data-i18n-title="options.footer.chrome.title">
+          <a class="footer-link" href="https://chromewebstore.google.com/detail/gbmnkgnhlmbappicmabbjdkmpojnlfig" target="_blank" rel="noreferrer" data-i18n-title="options.footer.chrome.title">
             <img data-icon="icons8-chrome-32.png" src="../shared/imgs/icons/b/icons8-chrome-32.png" alt="" width="16" height="16">
             <span data-i18n="options.footer.chrome"></span>
           </a>
@@ -364,7 +371,10 @@
 
         <section class="editor-section">
           <div class="editor-section__title">
-            <strong data-i18n="options.editor.routing"></strong>
+            <strong class="section-title-with-icon">
+              <img data-icon="icons8-route-32.png" src="../shared/imgs/icons/b/icons8-route-32.png" alt="" width="16" height="16">
+              <span data-i18n="options.editor.routing"></span>
+            </strong>
           </div>
           <div class="editor-grid">
             <label class="span-2">
@@ -383,7 +393,10 @@
 
         <section class="editor-section">
           <div class="editor-section__title">
-            <strong data-i18n="options.editor.credentials"></strong>
+            <strong class="section-title-with-icon">
+              <img data-icon="icons8-account-32.png" src="../shared/imgs/icons/b/icons8-account-32.png" alt="" width="16" height="16">
+              <span data-i18n="options.editor.credentials"></span>
+            </strong>
           </div>
           <div class="editor-grid editor-grid--credentials">
             <label>
