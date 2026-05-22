@@ -424,7 +424,7 @@ function updateSelectedRuleFromEditor() {
         card.querySelector('[data-field="syncAuthorization"]').checked,
       syncCookies: credentialMode === CREDENTIAL_MODES.sync &&
         card.querySelector('[data-field="syncCookies"]').checked,
-      credentialSource: card.querySelector('[data-field="credentialSource"]').value,
+      credentialSource: card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request,
       storageArea: card.querySelector('[data-field="storageArea"]').value,
       authorizationKey: card.querySelector('[data-field="authorizationKey"]').value.trim(),
       authorizationPrefix: card.querySelector('[data-field="authorizationPrefix"]').value,
@@ -637,7 +637,7 @@ function renderEditor() {
   const credentialModeInput = card.querySelector('[data-field="credentialMode"]');
   const sourcePatternInput = card.querySelector('[data-field="sourcePattern"]');
   const targetUrlInput = card.querySelector('[data-field="targetUrl"]');
-  const credentialSourceInput = card.querySelector('[data-field="credentialSource"]');
+  const credentialSourceInputs = Array.from(card.querySelectorAll('input[data-field="credentialSource"]'));
   const syncHeadersInput = card.querySelector('[data-field="syncHeaders"]');
   const syncAuthorizationInput = card.querySelector('[data-field="syncAuthorization"]');
   const syncCookiesInput = card.querySelector('[data-field="syncCookies"]');
@@ -671,7 +671,8 @@ function renderEditor() {
   syncHeadersInput.checked = Boolean(rule.syncHeaders);
   syncAuthorizationInput.checked = Boolean(rule.syncAuthorization);
   syncCookiesInput.checked = Boolean(rule.syncCookies);
-  credentialSourceInput.value = rule.credentialSource || CREDENTIAL_SOURCES.request;
+  const activeSourceInput = credentialSourceInputs.find(input => input.value === (rule.credentialSource || CREDENTIAL_SOURCES.request));
+  if (activeSourceInput) activeSourceInput.checked = true;
   card.querySelector('[data-field="storageArea"]').value = rule.storageArea || STORAGE_AREAS.localStorage;
   card.querySelector('[data-field="authorizationKey"]').value = rule.authorizationKey || "";
   card.querySelector('[data-field="authorizationPrefix"]').value = rule.authorizationPrefix || "";
@@ -679,13 +680,14 @@ function renderEditor() {
   card.querySelector('[data-field="cookieNames"]').value = rule.cookieNames || "";
   card.querySelector('[data-role="syncStatus"]').textContent = getSyncStatus(rule);
   updateCredentialModeVisibility(credentialModeInput.value, manualAuthorization, manualHeaders, syncOptions);
-  updateCredentialSourceVisibility(credentialSourceInput.value, sourceFields, syncHeadersInput);
+  const currentSourceValue = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
+  updateCredentialSourceVisibility(currentSourceValue, sourceFields, syncHeadersInput);
   renderInlineValidation(rule, card);
   renderSyncPreview(rule, syncPreview, syncTabs, syncPreviewContent);
 
   card.querySelectorAll("input, select").forEach((input) => {
     input.addEventListener("input", () => {
-      if (input === patternTypeInput || input === credentialModeInput || input === credentialSourceInput) {
+      if (input === patternTypeInput || input === credentialModeInput || credentialSourceInputs.includes(input)) {
         return;
       }
 
@@ -695,7 +697,7 @@ function renderEditor() {
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
     });
     input.addEventListener("change", () => {
-      if (input === patternTypeInput || input === credentialModeInput || input === credentialSourceInput) {
+      if (input === patternTypeInput || input === credentialModeInput || credentialSourceInputs.includes(input)) {
         return;
       }
 
@@ -731,12 +733,14 @@ function renderEditor() {
     renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
   });
 
-  credentialSourceInput.addEventListener("change", () => {
-    updateCredentialSourceVisibility(credentialSourceInput.value, sourceFields, syncHeadersInput);
-    updateSelectedRuleFromEditor();
-    renderInlineValidation(getSelectedRule(), card);
-    renderRuleList();
-    renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
+  credentialSourceInputs.forEach(input => {
+    input.addEventListener("change", () => {
+      updateCredentialSourceVisibility(input.value, sourceFields, syncHeadersInput);
+      updateSelectedRuleFromEditor();
+      renderInlineValidation(getSelectedRule(), card);
+      renderRuleList();
+      renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
+    });
   });
 
   (rule.headers || []).forEach((header) => {

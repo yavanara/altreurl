@@ -418,17 +418,52 @@
               <span data-i18n="options.editor.sessionCookies"></span>
             </label>
           </div>
-          <div class="source-grid">
-            <label>
-              <span data-i18n="options.editor.credentialSource"></span>
-              <select data-field="credentialSource">
-                <option value="request" data-i18n="options.editor.requestLearning"></option>
-                <option value="storage" data-i18n="options.editor.browserStorage"></option>
-                <option value="cookie" data-i18n="common.cookies"></option>
-              </select>
+          <div class="source-cards" role="radiogroup" aria-labelledby="credentialSourceLabel">
+            <p id="credentialSourceLabel" class="visually-hidden" data-i18n="options.editor.credentialSource"></p>
+            
+            <label class="source-card">
+              <input type="radio" name="credentialSource" data-field="credentialSource" value="request">
+              <div class="source-card__content">
+                <div class="icon-wrapper">
+                  <img data-icon="icons8-synchronize-32.png" src="../shared/imgs/icons/b/icons8-synchronize-32.png" alt="" width="24" height="24">
+                </div>
+                <div class="source-card__title">
+                  <span data-i18n="options.editor.requestLearning"></span>
+                  <span class="check-icon">✓</span>
+                </div>
+                <p class="source-card__desc" data-i18n="options.editor.requestLearning.desc"></p>
+              </div>
             </label>
 
-            <label data-role="storageAreaField">
+            <label class="source-card">
+              <input type="radio" name="credentialSource" data-field="credentialSource" value="storage">
+              <div class="source-card__content">
+                <div class="icon-wrapper">
+                  <img data-icon="icons8-save-32.png" src="../shared/imgs/icons/b/icons8-save-32.png" alt="" width="24" height="24">
+                </div>
+                <div class="source-card__title">
+                  <span data-i18n="options.editor.browserStorage"></span>
+                  <span class="check-icon">✓</span>
+                </div>
+                <p class="source-card__desc" data-i18n="options.editor.browserStorage.desc"></p>
+              </div>
+            </label>
+
+            <label class="source-card">
+              <input type="radio" name="credentialSource" data-field="credentialSource" value="cookie">
+              <div class="source-card__content">
+                <div class="icon-wrapper">
+                  <img data-icon="icons8-cookie-32.png" src="../shared/imgs/icons/b/icons8-cookie-32.png" alt="" width="24" height="24">
+                </div>
+                <div class="source-card__title">
+                  <span data-i18n="common.cookies"></span>
+                  <span class="check-icon">✓</span>
+                </div>
+                <p class="source-card__desc" data-i18n="options.editor.cookie.desc"></p>
+              </div>
+            </label>
+          </div>
+          <div class="source-grid">            <label data-role="storageAreaField">
               <span data-i18n="options.editor.storageArea"></span>
               <select data-field="storageArea">
                 <option value="localStorage" data-i18n="common.localStorage"></option>
