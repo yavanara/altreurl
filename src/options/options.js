@@ -574,9 +574,11 @@ function getFilteredRules() {
         rule.targetUrl
       ].some((value) => String(value || "").toLowerCase().includes(query));
       const ruleStatus = getRuleStatus(rule);
+      const isDraft = ruleStatus.key.startsWith("draft");
       const matchesStatus = status === "all" ||
         ruleStatus.key === status ||
-        (status === "enabled" && rule.enabled && ruleStatus.key !== "draft");
+        (status === "draft" && isDraft) ||
+        (status === "enabled" && rule.enabled && !isDraft);
       const matchesGroup = group === "all" || getRuleGroup(rule) === group;
       const matchesCredential = credentialMode === "all" || normalizedCredentialMode === credentialMode;
 
