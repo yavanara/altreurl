@@ -107,6 +107,7 @@ let pendingImport = null;
 let pendingExport = null;
 let pendingSavedRulesSignatures = new Set();
 let savedRuleIds = new Set(rules.map((rule) => rule.id));
+let dirtyRuleIds = new Set();
 let selectedRuleIds = new Set();
 const BACKGROUND_SYNC_FIELDS = [
   "syncedHeaders",
@@ -179,7 +180,7 @@ function mergeLocalRuleWithBackgroundSync(localRule, persistedRule) {
 }
 
 function isDraftRule(rule) {
-  return !savedRuleIds.has(rule.id);
+  return !savedRuleIds.has(rule.id) || dirtyRuleIds.has(rule.id);
 }
 
 function createRuleId() {
@@ -459,6 +460,10 @@ function updateSelectedRuleFromEditor() {
       }))
     });
   });
+
+  if (savedRuleIds.has(selectedRuleId)) {
+    dirtyRuleIds.add(selectedRuleId);
+  }
 }
 
 function renderRuleList() {
@@ -1156,6 +1161,7 @@ async function savePersistedRules(nextRules, committedRuleIds) {
   const appliedRules = await saveRules(savedRules);
 
   savedRuleIds = new Set(appliedRules.map((rule) => rule.id));
+  committedRuleIds.forEach((id) => dirtyRuleIds.delete(id));
   rules = mergePersistedRulesWithDrafts(appliedRules, {
     committedRuleIds
   });
