@@ -97,6 +97,7 @@ const appVersionEl = document.querySelector("#appVersion");
 if (appVersionEl) {
   appVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 }
+let persistedRulesCache = await getRedirectRules();
 let rules = await getRedirectRules();
 let selectedRuleId = "";
 let isSavingRule = false;
@@ -107,7 +108,6 @@ let pendingImport = null;
 let pendingExport = null;
 let pendingSavedRulesSignatures = new Set();
 let savedRuleIds = new Set(rules.map((rule) => rule.id));
-let dirtyRuleIds = new Set();
 let selectedRuleIds = new Set();
 const BACKGROUND_SYNC_FIELDS = [
   "syncedHeaders",
@@ -180,7 +180,36 @@ function mergeLocalRuleWithBackgroundSync(localRule, persistedRule) {
 }
 
 function isDraftRule(rule) {
-  return !savedRuleIds.has(rule.id) || dirtyRuleIds.has(rule.id);
+  return !savedRuleIds.has(rule.id);
+}
+
+function isDirtyRule(rule) {
+  if (!savedRuleIds.has(rule.id)) {
+    return false;
+  }
+  const persistedRule = persistedRulesCache.find((r) => r.id === rule.id);
+  if (!persistedRule) {
+    return true;
+  }
+
+  const fieldsToCompare = [
+    'name', 'group', 'enabled', 'patternType', 'credentialMode', 
+    'syncHeaders', 'syncAuthorization', 'syncCookies', 'credentialSource', 
+    'storageArea', 'authorizationKey', 'authorizationPrefix', 'headersKey', 
+    'cookieNames', 'sourcePattern', 'targetUrl', 'authorization'
+  ];
+
+  const serializeFields = (r) => {
+    const obj = {};
+    fieldsToCompare.forEach((f) => obj[f] = r[f]);
+    obj.headers = Array.isArray(r.headers) ? [...r.headers].map(h => ({...h})) : [];
+    obj.cookies = Array.isArray(r.cookies) ? [...r.cookies].map(c => ({...c})) : [];
+    return JSON.stringify(obj);
+  };
+
+  const a = normalizeRuleCredentialCapabilities(rule);
+  const b = normalizeRuleCredentialCapabilities(persistedRule);
+  return serializeFields(a) !== serializeFields(b);
 }
 
 function createRuleId() {
@@ -261,12 +290,32 @@ function getRuleStatus(rule) {
   if (isDraftRule(rule)) {
     if (ruleSetIssue) {
       return {
-        key: "unsaved",
-        htmlLabel: `<span class="draft-tag">${t("common.unsavedChanges")}</span> ${t("options.status.draftConflict")}`,
+        key: "draft",
+        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("options.status.draftConflict")}`,
         description: t("options.status.draftConflict.description", { issue: ruleSetIssue })
       };
     }
 
+    if (rule._importVersion) {
+      if (!rule.enabled) {
+        return { 
+          key: "draft-disabled", 
+          htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.disabled")}` 
+        };
+      }
+      return { 
+        key: "draft-ready", 
+        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.ready")}` 
+      };
+    }
+
+    return { 
+      key: "draft", 
+      htmlLabel: `<span class="draft-tag">${t("common.draft")}</span>` 
+    };
+  }
+
+  if (isDirtyRule(rule)) {
     return { 
       key: "unsaved", 
       htmlLabel: `<span class="draft-tag">${t("common.unsavedChanges")}</span>` 
@@ -453,10 +502,6 @@ function updateSelectedRuleFromEditor() {
       }))
     });
   });
-
-  if (savedRuleIds.has(selectedRuleId)) {
-    dirtyRuleIds.add(selectedRuleId);
-  }
 }
 
 function renderRuleList() {
@@ -573,10 +618,12 @@ function getFilteredRules() {
       ].some((value) => String(value || "").toLowerCase().includes(query));
       const ruleStatus = getRuleStatus(rule);
       const isUnsaved = ruleStatus.key === "unsaved";
+      const isDraft = ruleStatus.key.startsWith("draft");
       const matchesStatus = status === "all" ||
         ruleStatus.key === status ||
-        (status === "draft" && isUnsaved) ||
-        (status === "enabled" && rule.enabled && !isUnsaved);
+        (status === "draft" && isDraft) ||
+        (status === "unsaved" && isUnsaved) ||
+        (status === "enabled" && rule.enabled && !isDraft && !isUnsaved);
       const matchesGroup = group === "all" || getRuleGroup(rule) === group;
       const matchesCredential = credentialMode === "all" || normalizedCredentialMode === credentialMode;
 
@@ -1153,8 +1200,8 @@ async function savePersistedRules(nextRules, committedRuleIds) {
   ));
   const appliedRules = await saveRules(savedRules);
 
+  persistedRulesCache = appliedRules.map(rule => ({ ...rule }));
   savedRuleIds = new Set(appliedRules.map((rule) => rule.id));
-  committedRuleIds.forEach((id) => dirtyRuleIds.delete(id));
   rules = mergePersistedRulesWithDrafts(appliedRules, {
     committedRuleIds
   });
@@ -2175,6 +2222,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       return;
     }
 
+    persistedRulesCache = persistedRules.map(rule => ({ ...rule }));
     savedRuleIds = new Set(persistedRules.map((rule) => rule.id));
     rules = mergePersistedRulesWithDrafts(persistedRules);
     selectedRuleId = rules.some((rule) => rule.id === selectedRuleId) ? selectedRuleId : "";
