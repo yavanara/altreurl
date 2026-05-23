@@ -484,7 +484,7 @@ function updateSelectedRuleFromEditor() {
       syncCookies: credentialMode === CREDENTIAL_MODES.sync &&
         card.querySelector('[data-field="syncCookies"]').checked,
       credentialSource: card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request,
-      storageArea: card.querySelector('[data-field="storageArea"]').value,
+      storageArea: card.querySelector('input[name="storageArea"]:checked')?.value || STORAGE_AREAS.localStorage,
       authorizationKey: card.querySelector('[data-field="authorizationKey"]').value.trim(),
       authorizationPrefix: card.querySelector('[data-field="authorizationPrefix"]').value,
       headersKey: card.querySelector('[data-field="headersKey"]').value.trim(),
@@ -763,7 +763,8 @@ function renderEditor() {
   syncCookiesInput.checked = Boolean(rule.syncCookies);
   const activeSourceInput = credentialSourceInputs.find(input => input.value === (rule.credentialSource || CREDENTIAL_SOURCES.request));
   if (activeSourceInput) activeSourceInput.checked = true;
-  card.querySelector('[data-field="storageArea"]').value = rule.storageArea || STORAGE_AREAS.localStorage;
+  const storageRadio = card.querySelector(`input[name="storageArea"][value="${rule.storageArea || STORAGE_AREAS.localStorage}"]`);
+  if (storageRadio) storageRadio.checked = true;
   card.querySelector('[data-field="authorizationKey"]').value = rule.authorizationKey || "";
   card.querySelector('[data-field="authorizationPrefix"]').value = rule.authorizationPrefix || "";
   card.querySelector('[data-field="headersKey"]').value = rule.headersKey || "";
@@ -2230,4 +2231,37 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+function setupHelpModal() {
+  const modal = document.getElementById("helpModal");
+  const modalClose = document.getElementById("helpModalClose");
+  const modalTitle = document.getElementById("helpModalTitle");
+  const modalContent = document.getElementById("helpModalContent");
+
+  if (!modal || !modalClose || !modalTitle || !modalContent) return;
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".help-btn");
+    if (btn) {
+      e.preventDefault();
+      const topic = btn.dataset.helpTopic;
+      if (topic) {
+        modalTitle.textContent = t(`options.help.${topic}.title`);
+        modalContent.innerHTML = t(`options.help.${topic}.content`);
+        modal.classList.add("active");
+      }
+    }
+  });
+
+  modalClose.addEventListener("click", () => {
+    modal.classList.remove("active");
+  });
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.classList.remove("active");
+    }
+  });
+}
+
+setupHelpModal();
 render();

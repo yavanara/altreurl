@@ -547,34 +547,67 @@
 
           <div class="config-group config-group--details" data-role="sourceDetailsFields">
             <strong class="config-group__title" data-i18n="options.editor.extractionDetails"></strong>
-            <div class="source-grid">
-              <label data-role="storageAreaField">
-                <span data-i18n="options.editor.storageArea"></span>
-                <select data-field="storageArea">
-                  <option value="localStorage" data-i18n="common.localStorage"></option>
-                  <option value="sessionStorage" data-i18n="common.sessionStorage"></option>
-                </select>
-              </label>
+            <div style="display: flex; flex-direction: column; gap: 20px;" data-role="sourceDetailsFieldsContent">
+              <!-- Row 1: Storage Area -->
+              <div class="field-label" data-role="storageAreaField">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                  <span data-i18n="options.editor.storageArea"></span>
+                  <button type="button" class="help-btn" data-help-topic="storageArea" data-i18n-title="options.help.title">?</button>
+                </div>
+                <div class="segmented-control">
+                  <label class="segment">
+                    <input type="radio" data-field="storageArea" name="storageArea" value="localStorage" checked>
+                    <span data-i18n="common.localStorage"></span>
+                  </label>
+                  <label class="segment">
+                    <input type="radio" data-field="storageArea" name="storageArea" value="sessionStorage">
+                    <span data-i18n="common.sessionStorage"></span>
+                  </label>
+                </div>
+              </div>
 
-              <label data-role="authorizationKeyField">
-                <span data-i18n="options.editor.authorizationKey"></span>
-                <input data-field="authorizationKey" type="text" data-i18n-placeholder="options.editor.authorizationKey.placeholder">
-              </label>
+              <!-- Row 2: Authorization (Prefix | Key) -->
+              <div style="border-top: 1px solid var(--line); padding-top: 16px;">
+                <div class="inline-group">
+                  <label class="field-label" data-role="authorizationPrefixField">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span data-i18n="options.editor.authorizationPrefix"></span>
+                      <button type="button" class="help-btn" data-help-topic="authPrefix" data-i18n-title="options.help.title">?</button>
+                    </div>
+                    <input data-field="authorizationPrefix" type="text" data-i18n-placeholder="options.editor.authorizationPrefix.placeholder">
+                  </label>
 
-              <label data-role="authorizationPrefixField">
-                <span data-i18n="options.editor.authorizationPrefix"></span>
-                <input data-field="authorizationPrefix" type="text" data-i18n-placeholder="options.editor.authorizationPrefix.placeholder">
-              </label>
+                  <label class="field-label" data-role="authorizationKeyField">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span data-i18n="options.editor.authorizationKey"></span>
+                      <button type="button" class="help-btn" data-help-topic="authKey" data-i18n-title="options.help.title">?</button>
+                    </div>
+                    <input data-field="authorizationKey" type="text" data-i18n-placeholder="options.editor.authorizationKey.placeholder">
+                  </label>
+                </div>
+              </div>
 
-              <label data-role="headersKeyField">
-                <span data-i18n="options.editor.headersStorageKey"></span>
-                <input data-field="headersKey" type="text" data-i18n-placeholder="options.editor.headersKey.placeholder">
-              </label>
+              <!-- Row 3: Cookie Names -->
+              <div style="border-top: 1px solid var(--line); padding-top: 16px;" data-role="cookieNamesField">
+                <label class="field-label">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span data-i18n="options.editor.cookieNames"></span>
+                    <button type="button" class="help-btn" data-help-topic="cookies" data-i18n-title="options.help.title">?</button>
+                  </div>
+                  <input data-field="cookieNames" type="text" data-i18n-placeholder="options.editor.cookieNames.placeholder">
+                </label>
+              </div>
 
-              <label class="span-2" data-role="cookieNamesField">
-                <span data-i18n="options.editor.cookieNames"></span>
-                <input data-field="cookieNames" type="text" data-i18n-placeholder="options.editor.cookieNames.placeholder">
-              </label>
+              <!-- Row 4: Headers Storage Key -->
+              <div style="border-top: 1px solid var(--line); padding-top: 16px;" data-role="headersKeyField">
+                <label class="field-label">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span data-i18n="options.editor.headersStorageKey"></span>
+                    <button type="button" class="help-btn" data-help-topic="headers" data-i18n-title="options.help.title">?</button>
+                  </div>
+                  <input data-field="headersKey" type="text" data-i18n-placeholder="options.editor.headersKey.placeholder">
+                </label>
+              </div>
             </div>
           </div>
 
@@ -610,7 +643,20 @@
         </button>
       </div>
     </template>
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-    <script type="module" src="./options.js"></script>
-  </body>
+  <!-- Help Modal -->
+  <div class="modal-overlay" id="helpModal">
+    <div class="modal" role="dialog" aria-labelledby="helpModalTitle">
+      <div class="modal-header">
+        <h4 id="helpModalTitle">Help</h4>
+        <button type="button" class="modal-close" id="helpModalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="helpModalContent">
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js" type="module"></script>
+</body>
 </html>
