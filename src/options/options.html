@@ -326,7 +326,6 @@
             <label class="toggle-switch" data-i18n-title="options.actions.toggleRule.title">
               <input data-field="enabled" type="checkbox">
               <div class="toggle-slider"></div>
-              <span class="toggle-label" data-i18n="common.enabled"></span>
             </label>
             <span class="rule-badge" data-role="editorStatusBadge"></span>
           </div>
@@ -405,9 +404,8 @@
               <span data-i18n="options.editor.credentials"></span>
             </strong>
           </div>
-          <div class="editor-grid editor-grid--credentials">
+          <div class="editor-grid editor-grid--full">
             <div class="field-label">
-              <span data-i18n="options.editor.credentialMode"></span>
               <div class="mode-cards" data-i18n-title="options.editor.credentialMode.title" role="radiogroup">
                 <label class="mode-card">
                   <input type="radio" name="credentialMode" data-field="credentialMode" value="manual">
@@ -433,11 +431,44 @@
                 </label>
               </div>
             </div>
+          </div>
+        </section>
 
+        <section class="editor-section editor-section--manual" data-role="manualOptions" hidden>
+          <div class="editor-section__title">
+            <strong class="section-title-with-icon">
+              <img data-icon="icons8-pen-squared-32.png" src="../shared/imgs/icons/b/icons8-pen-squared-32.png" alt="" width="16" height="16">
+              <span data-i18n="options.editor.manualDataToInject"></span>
+            </strong>
+          </div>
+
+          <div class="config-group config-group--details">
+            <strong class="config-group__title" data-i18n="common.authorization"></strong>
             <label class="field-label" data-role="manualAuthorization">
-              <span data-i18n="common.authorization"></span>
-              <input data-field="authorization" type="text" data-i18n-placeholder="options.editor.authorization.placeholder" data-i18n-title="options.editor.authorization.title">
+              <textarea data-field="authorization" rows="2" data-i18n-placeholder="options.editor.authorization.placeholder" data-i18n-title="options.editor.authorization.title"></textarea>
             </label>
+          </div>
+
+          <div class="config-group config-group--details" data-role="manualHeaders">
+            <div class="config-group__title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <strong data-i18n="common.headers"></strong>
+              <button data-action="addHeader" class="icon-button" type="button">
+                <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.actions.addHeader"></span>
+              </button>
+            </div>
+            <div data-role="headers" style="margin-top: 12px;"></div>
+          </div>
+
+          <div class="config-group config-group--details" data-role="manualCookies">
+            <div class="config-group__title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <strong data-i18n="common.cookies"></strong>
+              <button data-action="addCookie" class="icon-button" type="button">
+                <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.actions.addCookie"></span>
+              </button>
+            </div>
+            <div data-role="cookies" style="margin-top: 12px;"></div>
           </div>
         </section>
 
@@ -553,16 +584,7 @@
           </div>
         </section>
 
-        <div class="headers-block" data-role="manualHeaders">
-          <div class="headers-block__title">
-            <strong data-i18n="common.headers"></strong>
-            <button data-action="addHeader" class="icon-button" type="button">
-              <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
-              <span data-i18n="options.actions.addHeader"></span>
-            </button>
-          </div>
-          <div data-role="headers"></div>
-        </div>
+
       </article>
     </template>
 
@@ -571,6 +593,17 @@
         <input data-field="headerName" type="text" data-i18n-placeholder="options.editor.headerName.placeholder">
         <input data-field="headerValue" type="text" data-i18n-placeholder="options.editor.headerValue.placeholder">
         <button data-action="removeHeader" class="icon-button" type="button" data-i18n-title="options.actions.removeHeader.title">
+          <img data-icon="icons8-remove-32.png" src="../shared/imgs/icons/b/icons8-remove-32.png" alt="" width="16" height="16">
+          <span data-i18n="common.remove"></span>
+        </button>
+      </div>
+    </template>
+
+    <template id="cookieTemplate">
+      <div class="header-row">
+        <input data-field="cookieName" type="text" data-i18n-placeholder="options.editor.cookieName.placeholder">
+        <input data-field="cookieValue" type="text" data-i18n-placeholder="options.editor.cookieValue.placeholder">
+        <button data-action="removeCookie" class="icon-button" type="button" data-i18n-title="options.actions.removeCookie.title">
           <img data-icon="icons8-remove-32.png" src="../shared/imgs/icons/b/icons8-remove-32.png" alt="" width="16" height="16">
           <span data-i18n="common.remove"></span>
         </button>

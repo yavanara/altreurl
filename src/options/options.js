@@ -51,6 +51,7 @@ const ruleListItemTemplate = document.querySelector("#ruleListItemTemplate");
 const emptyEditorTemplate = document.querySelector("#emptyEditorTemplate");
 const ruleTemplate = document.querySelector("#ruleTemplate");
 const headerTemplate = document.querySelector("#headerTemplate");
+const cookieTemplate = document.querySelector("#cookieTemplate");
 const addRuleButton = document.querySelector("#addRule");
 const importRulesButton = document.querySelector("#importRules");
 const copyDiagnosticsButton = document.querySelector("#copyDiagnostics");
@@ -438,9 +439,13 @@ function updateSelectedRuleFromEditor() {
       sourcePattern: card.querySelector('[data-field="sourcePattern"]').value.trim(),
       targetUrl: card.querySelector('[data-field="targetUrl"]').value.trim(),
       authorization: card.querySelector('[data-field="authorization"]').value.trim(),
-      headers: [...card.querySelectorAll(".header-row")].map((row) => ({
+      headers: [...card.querySelectorAll('[data-role="headers"] .header-row')].map((row) => ({
         name: row.querySelector('[data-field="headerName"]').value.trim(),
         value: row.querySelector('[data-field="headerValue"]').value.trim()
+      })),
+      cookies: [...card.querySelectorAll('[data-role="cookies"] .header-row')].map((row) => ({
+        name: row.querySelector('[data-field="cookieName"]').value.trim(),
+        value: row.querySelector('[data-field="cookieValue"]').value.trim()
       }))
     });
   });
@@ -592,6 +597,23 @@ function renderHeader(header = { name: "", value: "" }) {
   return fragment;
 }
 
+function renderCookie(cookie = { name: "", value: "" }) {
+  const fragment = cookieTemplate.content.cloneNode(true);
+  applyTranslations(fragment);
+  applyThemedIcons(fragment);
+  const row = fragment.querySelector(".header-row");
+
+  row.querySelector('[data-field="cookieName"]').value = cookie.name || "";
+  row.querySelector('[data-field="cookieValue"]').value = cookie.value || "";
+  row.querySelector('[data-action="removeCookie"]').addEventListener("click", () => {
+    row.remove();
+    updateSelectedRuleFromEditor();
+    renderRuleList();
+  });
+
+  return fragment;
+}
+
 function renderInlineValidation(rule, card) {
   const messagesByField = new Map();
 
@@ -637,7 +659,9 @@ function renderEditor() {
   applyTranslations(fragment);
   applyThemedIcons(fragment);
   const card = fragment.querySelector(".rule-editor");
+  const manualOptions = card.querySelector('[data-role="manualOptions"]');
   const headersContainer = card.querySelector('[data-role="headers"]');
+  const cookiesContainer = card.querySelector('[data-role="cookies"]');
   const patternTypeInputs = Array.from(card.querySelectorAll('input[name="patternType"]'));
   const credentialModeInputs = Array.from(card.querySelectorAll('input[name="credentialMode"]'));
   const sourcePatternInput = card.querySelector('[data-field="sourcePattern"]');
@@ -646,8 +670,6 @@ function renderEditor() {
   const syncHeadersInput = card.querySelector('[data-field="syncHeaders"]');
   const syncAuthorizationInput = card.querySelector('[data-field="syncAuthorization"]');
   const syncCookiesInput = card.querySelector('[data-field="syncCookies"]');
-  const manualAuthorization = card.querySelector('[data-role="manualAuthorization"]');
-  const manualHeaders = card.querySelector('[data-role="manualHeaders"]');
   const syncOptions = card.querySelector('[data-role="syncOptions"]');
   const syncPreview = card.querySelector('[data-role="syncPreview"]');
   const syncTabs = card.querySelector('[data-role="syncTabs"]');
@@ -691,7 +713,7 @@ function renderEditor() {
   card.querySelector('[data-field="cookieNames"]').value = rule.cookieNames || "";
   card.querySelector('[data-role="syncStatus"]').textContent = getSyncStatus(rule);
   const currentModeValue = card.querySelector('input[name="credentialMode"]:checked')?.value || CREDENTIAL_MODES.manual;
-  updateCredentialModeVisibility(currentModeValue, manualAuthorization, manualHeaders, syncOptions);
+  updateCredentialModeVisibility(currentModeValue, manualOptions, syncOptions);
   const currentSourceValue = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
   updateCredentialSourceVisibility(currentSourceValue, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
   renderInlineValidation(rule, card);
@@ -745,7 +767,7 @@ function renderEditor() {
 
   credentialModeInputs.forEach(input => {
     input.addEventListener("change", () => {
-      updateCredentialModeVisibility(input.value, manualAuthorization, manualHeaders, syncOptions);
+      updateCredentialModeVisibility(input.value, manualOptions, syncOptions);
       updateSelectedRuleFromEditor();
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
@@ -769,6 +791,15 @@ function renderEditor() {
 
   card.querySelector('[data-action="addHeader"]').addEventListener("click", () => {
     headersContainer.append(renderHeader());
+    updateSelectedRuleFromEditor();
+  });
+
+  (rule.cookies || []).forEach((cookie) => {
+    cookiesContainer.append(renderCookie(cookie));
+  });
+
+  card.querySelector('[data-action="addCookie"]').addEventListener("click", () => {
+    cookiesContainer.append(renderCookie());
     updateSelectedRuleFromEditor();
   });
 
@@ -941,11 +972,10 @@ function getSyncStatus(rule) {
     : t("common.ready");
 }
 
-function updateCredentialModeVisibility(credentialMode, manualAuthorization, manualHeaders, syncOptions) {
+function updateCredentialModeVisibility(credentialMode, manualOptions, syncOptions) {
   const isSyncMode = credentialMode === CREDENTIAL_MODES.sync;
 
-  manualAuthorization.hidden = isSyncMode;
-  manualHeaders.hidden = isSyncMode;
+  manualOptions.hidden = isSyncMode;
   syncOptions.hidden = !isSyncMode;
 }
 

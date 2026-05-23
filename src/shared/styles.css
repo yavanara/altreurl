@@ -735,8 +735,8 @@ label select {
   grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 0.9fr) minmax(160px, 0.7fr);
 }
 
-.editor-grid--credentials {
-  grid-template-columns: minmax(180px, 0.55fr) minmax(260px, 1fr);
+.editor-grid--full {
+  grid-template-columns: 1fr;
 }
 
 .editor-section {
@@ -746,6 +746,11 @@ label select {
   display: grid;
   gap: 14px;
   padding: 14px;
+}
+
+.editor-section--manual {
+  background: rgba(255,255,255,0.02);
+  border-style: dashed;
 }
 
 .editor-section__title {
@@ -982,6 +987,10 @@ label select {
   color: var(--text);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
+.segmented-control label:active .segmented-content {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
 
 /* 3. Mode Cards */
 .mode-cards {
@@ -1039,6 +1048,9 @@ label select {
 }
 .mode-card input:checked + .mode-card-content .mode-icon {
   background: var(--accent);
+}
+.mode-card:active .mode-card-content {
+  transform: scale(0.97);
 }
 
 .source-cards {

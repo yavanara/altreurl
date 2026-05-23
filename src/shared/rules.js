@@ -684,13 +684,21 @@ function getRequestHeadersForRule(rule, isIncognito = false) {
   const manualAuthorization = rule.authorization
     ? [{ name: "Authorization", value: rule.authorization }]
     : [];
+  const manualCookieString = (rule.cookies || [])
+    .filter(c => c.name && c.value)
+    .map(c => `${c.name}=${c.value}`)
+    .join("; ");
+  const manualCookies = manualCookieString
+    ? [{ name: "Cookie", value: manualCookieString }]
+    : [];
 
   return mergeRequestHeaders(
     syncedHeaders,
     syncedAuthorization,
     syncedCookieHeader,
     normalizeCredentialMode(rule) === CREDENTIAL_MODES.manual ? manualAuthorization : [],
-    normalizeCredentialMode(rule) === CREDENTIAL_MODES.manual ? normalizeHeaderRows(rule.headers) : []
+    normalizeCredentialMode(rule) === CREDENTIAL_MODES.manual ? normalizeHeaderRows(rule.headers) : [],
+    normalizeCredentialMode(rule) === CREDENTIAL_MODES.manual ? manualCookies : []
   );
 }
 
