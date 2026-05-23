@@ -1061,8 +1061,8 @@ label select {
   color: var(--muted);
 }
 .mode-card:hover .mode-card-content {
+  background-color: var(--accent-soft);
   border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.02);
 }
 .mode-card input:checked + .mode-card-content {
   background: var(--accent-soft);
