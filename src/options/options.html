@@ -350,24 +350,33 @@
             </strong>
           </div>
           <div class="editor-grid editor-grid--meta">
-            <label class="field-label">
-              <span data-i18n="common.name"></span>
+            <div class="field-label">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="common.name"></span>
+                <button type="button" class="help-btn" data-help-topic="ruleName" data-i18n-title="options.help.title">?</button>
+              </div>
               <input data-field="name" type="text" data-i18n-placeholder="options.editor.name.placeholder" data-i18n-title="options.editor.name.title">
-            </label>
-
-            <label class="field-label">
-              <span data-i18n="common.group"></span>
-              <input data-field="group" type="text" data-i18n-placeholder="options.editor.group.placeholder" data-i18n-title="options.editor.group.title">
-            </label>
+            </div>
 
             <div class="field-label">
-              <span data-i18n="options.editor.patternFormat"></span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="common.group"></span>
+                <button type="button" class="help-btn" data-help-topic="ruleGroup" data-i18n-title="options.help.title">?</button>
+              </div>
+              <input data-field="group" type="text" data-i18n-placeholder="options.editor.group.placeholder" data-i18n-title="options.editor.group.title">
+            </div>
+
+            <div class="field-label">
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                <span data-i18n="options.editor.patternFormat"></span>
+                <button type="button" class="help-btn" data-help-topic="patternType" data-i18n-title="options.help.title">?</button>
+              </div>
               <div class="segmented-control" data-i18n-title="options.editor.pattern.title" role="radiogroup">
-                <label>
+                <label class="segment">
                   <input type="radio" name="patternType" data-field="patternType" value="wildcard">
                   <span class="segmented-content" data-i18n="common.wildcard"></span>
                 </label>
-                <label>
+                <label class="segment">
                   <input type="radio" name="patternType" data-field="patternType" value="regex">
                   <span class="segmented-content" data-i18n="common.regex"></span>
                 </label>
@@ -384,17 +393,23 @@
             </strong>
           </div>
           <div class="editor-grid">
-            <label class="field-label span-2">
-              <span data-i18n="options.editor.sourcePattern"></span>
+            <div class="field-label span-2">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="options.editor.sourcePattern"></span>
+                <button type="button" class="help-btn" data-help-topic="sourcePattern" data-i18n-title="options.help.title">?</button>
+              </div>
               <input data-field="sourcePattern" type="text" data-i18n-placeholder="options.editor.source.placeholder" data-i18n-title="options.editor.source.title">
               <small class="field-feedback" data-feedback-for="sourcePattern"></small>
-            </label>
+            </div>
 
-            <label class="field-label span-2">
-              <span data-i18n="options.editor.targetUrl"></span>
+            <div class="field-label span-2">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="options.editor.targetUrl"></span>
+                <button type="button" class="help-btn" data-help-topic="targetUrl" data-i18n-title="options.help.title">?</button>
+              </div>
               <input data-field="targetUrl" type="text" data-i18n-placeholder="options.editor.target.placeholder" data-i18n-title="options.editor.target.title">
               <small class="field-feedback" data-feedback-for="targetUrl"></small>
-            </label>
+            </div>
           </div>
         </section>
 
@@ -402,7 +417,10 @@
           <div class="editor-section__title">
             <strong class="section-title-with-icon">
               <img data-icon="icons8-account-32.png" src="../shared/imgs/icons/b/icons8-account-32.png" alt="" width="16" height="16">
-              <span data-i18n="options.editor.credentials"></span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="options.editor.credentials"></span>
+                <button type="button" class="help-btn" data-help-topic="credentialMode" data-i18n-title="options.help.title">?</button>
+              </div>
             </strong>
           </div>
           <div class="editor-grid editor-grid--full">
@@ -444,15 +462,21 @@
           </div>
 
           <div class="config-group config-group--details">
-            <strong class="config-group__title" data-i18n="common.authorization"></strong>
-            <label class="field-label" data-role="manualAuthorization">
+            <div class="config-group__title" style="display: flex; align-items: center; gap: 6px;">
+              <strong data-i18n="common.authorization"></strong>
+              <button type="button" class="help-btn" data-help-topic="manualAuthorization" data-i18n-title="options.help.title">?</button>
+            </div>
+            <div class="field-label" data-role="manualAuthorization">
               <textarea data-field="authorization" rows="2" data-i18n-placeholder="options.editor.authorization.placeholder" data-i18n-title="options.editor.authorization.title"></textarea>
-            </label>
+            </div>
           </div>
 
           <div class="config-group config-group--details" data-role="manualCookies">
             <div class="config-group__title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
-              <strong data-i18n="common.cookies"></strong>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <strong data-i18n="common.cookies"></strong>
+                <button type="button" class="help-btn" data-help-topic="manualCookies" data-i18n-title="options.help.title">?</button>
+              </div>
               <button data-action="addCookie" class="icon-button" type="button">
                 <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
                 <span data-i18n="options.actions.addCookie"></span>
@@ -463,7 +487,10 @@
 
           <div class="config-group config-group--details" data-role="manualHeaders">
             <div class="config-group__title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
-              <strong data-i18n="common.headers"></strong>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <strong data-i18n="common.headers"></strong>
+                <button type="button" class="help-btn" data-help-topic="manualHeaders" data-i18n-title="options.help.title">?</button>
+              </div>
               <button data-action="addHeader" class="icon-button" type="button">
                 <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
                 <span data-i18n="options.actions.addHeader"></span>
@@ -477,7 +504,10 @@
           <div class="editor-section__title">
             <strong class="section-title-with-icon">
               <img data-icon="icons8-synchronize-32.png" src="../shared/imgs/icons/b/icons8-synchronize-32.png" alt="" width="16" height="16">
-              <span data-i18n="options.editor.syncLegend"></span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span data-i18n="options.editor.syncLegend"></span>
+                <button type="button" class="help-btn" data-help-topic="credentialSource" data-i18n-title="options.help.title">?</button>
+              </div>
             </strong>
           </div>
 
@@ -528,7 +558,10 @@
           </div>
 
           <div class="config-group config-group--targets">
-            <strong class="config-group__title" data-i18n="options.editor.syncTargets"></strong>
+            <div class="config-group__title" style="display: flex; align-items: center; gap: 6px;">
+              <strong data-i18n="options.editor.syncTargets"></strong>
+              <button type="button" class="help-btn" data-help-topic="syncTargets" data-i18n-title="options.help.title">?</button>
+            </div>
             <div class="chip-group">
               <label class="chip-label">
                 <input data-field="syncHeaders" type="checkbox">
