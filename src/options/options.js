@@ -261,22 +261,15 @@ function getRuleStatus(rule) {
   if (isDraftRule(rule)) {
     if (ruleSetIssue) {
       return {
-        key: "draft",
-        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("options.status.draftConflict")}`,
+        key: "unsaved",
+        htmlLabel: `<span class="draft-tag">${t("common.unsavedChanges")}</span> ${t("options.status.draftConflict")}`,
         description: t("options.status.draftConflict.description", { issue: ruleSetIssue })
       };
     }
 
-    if (!rule.enabled) {
-      return { 
-        key: "draft-disabled", 
-        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.disabled")}` 
-      };
-    }
-    
     return { 
-      key: "draft-ready", 
-      htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.ready")}` 
+      key: "unsaved", 
+      htmlLabel: `<span class="draft-tag">${t("common.unsavedChanges")}</span>` 
     };
   }
 
@@ -579,11 +572,11 @@ function getFilteredRules() {
         rule.targetUrl
       ].some((value) => String(value || "").toLowerCase().includes(query));
       const ruleStatus = getRuleStatus(rule);
-      const isDraft = ruleStatus.key.startsWith("draft");
+      const isUnsaved = ruleStatus.key === "unsaved";
       const matchesStatus = status === "all" ||
         ruleStatus.key === status ||
-        (status === "draft" && isDraft) ||
-        (status === "enabled" && rule.enabled && !isDraft);
+        (status === "draft" && isUnsaved) ||
+        (status === "enabled" && rule.enabled && !isUnsaved);
       const matchesGroup = group === "all" || getRuleGroup(rule) === group;
       const matchesCredential = credentialMode === "all" || normalizedCredentialMode === credentialMode;
 

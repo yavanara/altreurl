@@ -662,15 +662,9 @@ label select {
   color: var(--muted);
 }
 
-.rule-badge[data-status="draft-ready"] {
-  background: var(--success-soft);
-  border-color: var(--success);
-}
-
-.rule-badge[data-status="draft-disabled"] {
-  background: var(--panel);
-  border-color: var(--line);
-  color: var(--muted);
+.rule-badge[data-status="unsaved"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .draft-tag {
