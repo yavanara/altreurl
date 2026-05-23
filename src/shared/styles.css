@@ -1469,9 +1469,12 @@ label select {
   border: 1px solid var(--line);
   color: var(--muted);
   border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  font-size: 11px;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  flex: 0 0 14px;
+  font-size: 10px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -1480,6 +1483,7 @@ label select {
   padding: 0;
   transition: all 0.2s;
   font-weight: bold;
+  box-sizing: border-box;
 }
 .help-btn:hover {
   color: var(--accent);
