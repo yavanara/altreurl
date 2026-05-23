@@ -262,11 +262,11 @@
       <footer class="app-footer">
         <p data-i18n="options.footer.tagline"></p>
         <nav class="app-footer__links" data-i18n-aria-label="options.footer.links.label">
-          <a class="footer-link" href="#" target="_blank" rel="noreferrer" data-i18n-title="options.footer.web.title">
+          <a class="footer-link" href="https://yavanara.github.io/altreurl/" target="_blank" rel="noreferrer" data-i18n-title="options.footer.web.title">
             <img data-icon="icons8-globe-32.png" src="../shared/imgs/icons/b/icons8-globe-32.png" alt="" width="16" height="16">
             <span data-i18n="options.footer.web"></span>
           </a>
-          <a class="footer-link" href="https://github.com/yavanara/altreurl/wiki" target="_blank" rel="noreferrer" data-i18n-title="options.footer.docs.title">
+          <a class="footer-link" href="https://yavanara.github.io/altreurl/docs.html" target="_blank" rel="noreferrer" data-i18n-title="options.footer.docs.title">
             <img data-icon="icons8-book-32.png" src="../shared/imgs/icons/b/icons8-book-32.png" alt="" width="16" height="16">
             <span data-i18n="options.footer.docs"></span>
           </a>
@@ -323,9 +323,10 @@
       <article class="rule-editor">
         <div class="rule-editor__header">
           <div class="rule-state">
-            <label>
+            <label class="toggle-switch" data-i18n-title="options.actions.toggleRule.title">
               <input data-field="enabled" type="checkbox">
-              <span data-i18n="common.enabled"></span>
+              <div class="toggle-slider"></div>
+              <span class="toggle-label" data-i18n="common.enabled"></span>
             </label>
             <span class="rule-badge" data-role="editorStatusBadge"></span>
           </div>
@@ -349,23 +350,29 @@
             </strong>
           </div>
           <div class="editor-grid editor-grid--meta">
-            <label>
+            <label class="field-label">
               <span data-i18n="common.name"></span>
               <input data-field="name" type="text" data-i18n-placeholder="options.editor.name.placeholder" data-i18n-title="options.editor.name.title">
             </label>
 
-            <label>
+            <label class="field-label">
               <span data-i18n="common.group"></span>
               <input data-field="group" type="text" data-i18n-placeholder="options.editor.group.placeholder" data-i18n-title="options.editor.group.title">
             </label>
 
-            <label>
+            <div class="field-label">
               <span data-i18n="options.editor.patternFormat"></span>
-              <select data-field="patternType" data-i18n-title="options.editor.pattern.title">
-                <option value="wildcard" data-i18n="common.wildcard"></option>
-                <option value="regex" data-i18n="common.regex"></option>
-              </select>
-            </label>
+              <div class="segmented-control" data-i18n-title="options.editor.pattern.title" role="radiogroup">
+                <label>
+                  <input type="radio" name="patternType" data-field="patternType" value="wildcard">
+                  <span class="segmented-content" data-i18n="common.wildcard"></span>
+                </label>
+                <label>
+                  <input type="radio" name="patternType" data-field="patternType" value="regex">
+                  <span class="segmented-content" data-i18n="common.regex"></span>
+                </label>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -377,13 +384,13 @@
             </strong>
           </div>
           <div class="editor-grid">
-            <label class="span-2">
+            <label class="field-label span-2">
               <span data-i18n="options.editor.sourcePattern"></span>
               <input data-field="sourcePattern" type="text" data-i18n-placeholder="options.editor.source.placeholder" data-i18n-title="options.editor.source.title">
               <small class="field-feedback" data-feedback-for="sourcePattern"></small>
             </label>
 
-            <label class="span-2">
+            <label class="field-label span-2">
               <span data-i18n="options.editor.targetUrl"></span>
               <input data-field="targetUrl" type="text" data-i18n-placeholder="options.editor.target.placeholder" data-i18n-title="options.editor.target.title">
               <small class="field-feedback" data-feedback-for="targetUrl"></small>
@@ -399,15 +406,35 @@
             </strong>
           </div>
           <div class="editor-grid editor-grid--credentials">
-            <label>
+            <div class="field-label">
               <span data-i18n="options.editor.credentialMode"></span>
-              <select data-field="credentialMode" data-i18n-title="options.editor.credentialMode.title">
-                <option value="manual" data-i18n="common.manual"></option>
-                <option value="sync" data-i18n="options.editor.syncFromSource"></option>
-              </select>
-            </label>
+              <div class="mode-cards" data-i18n-title="options.editor.credentialMode.title" role="radiogroup">
+                <label class="mode-card">
+                  <input type="radio" name="credentialMode" data-field="credentialMode" value="manual">
+                  <div class="mode-card-content">
+                    <div class="mode-icon">
+                      <img data-icon="icons8-pen-squared-32.png" src="../shared/imgs/icons/b/icons8-pen-squared-32.png" alt="" width="20" height="20">
+                    </div>
+                    <div class="mode-text">
+                      <span class="mode-title" data-i18n="common.manual"></span>
+                    </div>
+                  </div>
+                </label>
+                <label class="mode-card">
+                  <input type="radio" name="credentialMode" data-field="credentialMode" value="sync">
+                  <div class="mode-card-content">
+                    <div class="mode-icon">
+                      <img data-icon="icons8-synchronize-32.png" src="../shared/imgs/icons/b/icons8-synchronize-32.png" alt="" width="20" height="20">
+                    </div>
+                    <div class="mode-text">
+                      <span class="mode-title" data-i18n="options.editor.syncFromSource"></span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
 
-            <label data-role="manualAuthorization">
+            <label class="field-label" data-role="manualAuthorization">
               <span data-i18n="common.authorization"></span>
               <input data-field="authorization" type="text" data-i18n-placeholder="options.editor.authorization.placeholder" data-i18n-title="options.editor.authorization.title">
             </label>

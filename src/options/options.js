@@ -410,7 +410,7 @@ function updateSelectedRuleFromEditor() {
     return;
   }
 
-  const credentialMode = card.querySelector('[data-field="credentialMode"]').value;
+  const credentialMode = card.querySelector('input[name="credentialMode"]:checked')?.value || CREDENTIAL_MODES.manual;
   rules = rules.map((rule) => {
     if (rule.id !== selectedRuleId) {
       return rule;
@@ -421,7 +421,7 @@ function updateSelectedRuleFromEditor() {
       name: card.querySelector('[data-field="name"]').value.trim(),
       group: card.querySelector('[data-field="group"]').value.trim(),
       enabled: card.querySelector('[data-field="enabled"]').checked,
-      patternType: card.querySelector('[data-field="patternType"]').value,
+      patternType: card.querySelector('input[name="patternType"]:checked')?.value || PATTERN_TYPES.wildcard,
       credentialMode,
       syncHeaders: credentialMode === CREDENTIAL_MODES.sync &&
         card.querySelector('[data-field="syncHeaders"]').checked,
@@ -638,8 +638,8 @@ function renderEditor() {
   applyThemedIcons(fragment);
   const card = fragment.querySelector(".rule-editor");
   const headersContainer = card.querySelector('[data-role="headers"]');
-  const patternTypeInput = card.querySelector('[data-field="patternType"]');
-  const credentialModeInput = card.querySelector('[data-field="credentialMode"]');
+  const patternTypeInputs = Array.from(card.querySelectorAll('input[name="patternType"]'));
+  const credentialModeInputs = Array.from(card.querySelectorAll('input[name="credentialMode"]'));
   const sourcePatternInput = card.querySelector('[data-field="sourcePattern"]');
   const targetUrlInput = card.querySelector('[data-field="targetUrl"]');
   const credentialSourceInputs = Array.from(card.querySelectorAll('input[data-field="credentialSource"]'));
@@ -669,8 +669,13 @@ function renderEditor() {
   editorStatusBadge.title = getRuleStatusDescription(ruleStatus);
   card.querySelector('[data-field="name"]').value = rule.name || "";
   card.querySelector('[data-field="group"]').value = rule.group || "";
-  patternTypeInput.value = rule.patternType || PATTERN_TYPES.wildcard;
-  credentialModeInput.value = rule.credentialMode || (hasSyncEnabled(rule) ? CREDENTIAL_MODES.sync : CREDENTIAL_MODES.manual);
+  
+  const activePatternType = patternTypeInputs.find(input => input.value === (rule.patternType || PATTERN_TYPES.wildcard));
+  if (activePatternType) activePatternType.checked = true;
+  
+  const activeMode = credentialModeInputs.find(input => input.value === (rule.credentialMode || (hasSyncEnabled(rule) ? CREDENTIAL_MODES.sync : CREDENTIAL_MODES.manual)));
+  if (activeMode) activeMode.checked = true;
+  
   sourcePatternInput.value = rule.sourcePattern || "";
   targetUrlInput.value = rule.targetUrl || "";
   card.querySelector('[data-field="authorization"]').value = rule.authorization || "";
@@ -685,7 +690,8 @@ function renderEditor() {
   card.querySelector('[data-field="headersKey"]').value = rule.headersKey || "";
   card.querySelector('[data-field="cookieNames"]').value = rule.cookieNames || "";
   card.querySelector('[data-role="syncStatus"]').textContent = getSyncStatus(rule);
-  updateCredentialModeVisibility(credentialModeInput.value, manualAuthorization, manualHeaders, syncOptions);
+  const currentModeValue = card.querySelector('input[name="credentialMode"]:checked')?.value || CREDENTIAL_MODES.manual;
+  updateCredentialModeVisibility(currentModeValue, manualAuthorization, manualHeaders, syncOptions);
   const currentSourceValue = card.querySelector('input[data-field="credentialSource"]:checked')?.value || CREDENTIAL_SOURCES.request;
   updateCredentialSourceVisibility(currentSourceValue, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
   renderInlineValidation(rule, card);
@@ -693,7 +699,7 @@ function renderEditor() {
 
   card.querySelectorAll("input, select").forEach((input) => {
     input.addEventListener("input", () => {
-      if (input === patternTypeInput || input === credentialModeInput || credentialSourceInputs.includes(input)) {
+      if (patternTypeInputs.includes(input) || credentialModeInputs.includes(input) || credentialSourceInputs.includes(input)) {
         return;
       }
 
@@ -705,7 +711,7 @@ function renderEditor() {
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
     });
     input.addEventListener("change", () => {
-      if (input === patternTypeInput || input === credentialModeInput || credentialSourceInputs.includes(input)) {
+      if (patternTypeInputs.includes(input) || credentialModeInputs.includes(input) || credentialSourceInputs.includes(input)) {
         return;
       }
 
@@ -718,29 +724,33 @@ function renderEditor() {
     });
   });
 
-  patternTypeInput.addEventListener("change", () => {
-    const previousRule = getSelectedRule();
-    const fromType = previousRule?.patternType || PATTERN_TYPES.wildcard;
-    const toType = patternTypeInput.value;
+  patternTypeInputs.forEach(input => {
+    input.addEventListener("change", () => {
+      const previousRule = getSelectedRule();
+      const fromType = previousRule?.patternType || PATTERN_TYPES.wildcard;
+      const toType = input.value;
 
-    if (fromType === toType) {
-      return;
-    }
+      if (fromType === toType) {
+        return;
+      }
 
-    sourcePatternInput.value = convertPatternFormat(sourcePatternInput.value.trim(), fromType, toType, "source");
-    targetUrlInput.value = convertPatternFormat(targetUrlInput.value.trim(), fromType, toType, "target");
-    updateSelectedRuleFromEditor();
-    renderInlineValidation(getSelectedRule(), card);
-    renderRuleList();
-    notify(t("options.toast.patternConverted", { type: toType }));
+      sourcePatternInput.value = convertPatternFormat(sourcePatternInput.value.trim(), fromType, toType, "source");
+      targetUrlInput.value = convertPatternFormat(targetUrlInput.value.trim(), fromType, toType, "target");
+      updateSelectedRuleFromEditor();
+      renderInlineValidation(getSelectedRule(), card);
+      renderRuleList();
+      notify(t("options.toast.patternConverted", { type: toType }));
+    });
   });
 
-  credentialModeInput.addEventListener("change", () => {
-    updateCredentialModeVisibility(credentialModeInput.value, manualAuthorization, manualHeaders, syncOptions);
-    updateSelectedRuleFromEditor();
-    renderInlineValidation(getSelectedRule(), card);
-    renderRuleList();
-    renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
+  credentialModeInputs.forEach(input => {
+    input.addEventListener("change", () => {
+      updateCredentialModeVisibility(input.value, manualAuthorization, manualHeaders, syncOptions);
+      updateSelectedRuleFromEditor();
+      renderInlineValidation(getSelectedRule(), card);
+      renderRuleList();
+      renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
+    });
   });
 
   credentialSourceInputs.forEach(input => {

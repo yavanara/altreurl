@@ -127,7 +127,7 @@ textarea.is-invalid {
   border-color: var(--danger);
 }
 
-label {
+label, .field-label {
   display: grid;
   gap: 6px;
   color: var(--muted);
@@ -879,7 +879,7 @@ label select {
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--panel);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 20px;
   font-size: 13px;
@@ -888,8 +888,7 @@ label select {
 }
 
 .chip-label:hover .chip-content {
-  background: var(--accent-soft);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--panel);
 }
 
 .chip-label input:checked + .chip-content {
@@ -902,6 +901,144 @@ label select {
 .chip-label input:checked + .chip-content::before {
   content: '✓';
   font-weight: bold;
+}
+
+/* 1. Toggle Switch (iOS Style) */
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  width: max-content;
+}
+.toggle-switch input {
+  display: none;
+}
+.toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: var(--line);
+  border-radius: 24px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--success);
+}
+.toggle-switch input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* 2. Segmented Control */
+.segmented-control {
+  display: inline-flex;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  width: 100%;
+}
+.segmented-control label {
+  cursor: pointer;
+  position: relative;
+  flex: 1;
+  text-align: center;
+  display: block;
+  gap: 0;
+}
+.segmented-control input {
+  display: none;
+}
+.segmented-content {
+  display: block;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  border-radius: 6px;
+  transition: all 0.2s;
+  z-index: 1;
+  position: relative;
+}
+.segmented-control input:checked + .segmented-content {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* 3. Mode Cards */
+.mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mode-card {
+  cursor: pointer;
+  position: relative;
+  display: block;
+}
+.mode-card input {
+  display: none;
+}
+.mode-card-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+.mode-icon {
+  background: rgba(255,255,255,0.05);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mode-text {
+  display: flex;
+  flex-direction: column;
+}
+.mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.mode-desc {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mode-card:hover .mode-card-content {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--panel);
+}
+.mode-card input:checked + .mode-card-content {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.mode-card input:checked + .mode-card-content .mode-icon {
+  background: var(--accent);
 }
 
 .source-cards {
