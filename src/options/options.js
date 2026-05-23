@@ -261,12 +261,22 @@ function getRuleStatus(rule) {
     if (ruleSetIssue) {
       return {
         key: "draft",
-        label: t("options.status.draftConflict"),
+        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("options.status.draftConflict")}`,
         description: t("options.status.draftConflict.description", { issue: ruleSetIssue })
       };
     }
 
-    return { key: "draft", label: t("common.draft") };
+    if (!rule.enabled) {
+      return { 
+        key: "draft-disabled", 
+        htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.disabled")}` 
+      };
+    }
+    
+    return { 
+      key: "draft-ready", 
+      htmlLabel: `<span class="draft-tag">${t("common.draft")}</span> ${t("common.ready")}` 
+    };
   }
 
   if (ruleSetIssue) {
@@ -488,7 +498,7 @@ function renderRuleList() {
     const ruleStatus = getRuleStatus(rule);
     item.querySelector('[data-role="ruleName"]').textContent = rule.name || t("options.rules.unnamed");
     const statusBadge = item.querySelector('[data-role="statusBadge"]');
-    statusBadge.textContent = ruleStatus.label;
+    statusBadge.innerHTML = ruleStatus.htmlLabel || ruleStatus.label;
     statusBadge.dataset.status = ruleStatus.key;
     statusBadge.title = getRuleStatusDescription(ruleStatus);
     item.title = t("options.rules.itemTooltip", {
@@ -686,7 +696,7 @@ function renderEditor() {
   card.querySelector('[data-field="enabled"]').checked = Boolean(rule.enabled);
   const editorStatusBadge = card.querySelector('[data-role="editorStatusBadge"]');
   const ruleStatus = getRuleStatus(rule);
-  editorStatusBadge.textContent = ruleStatus.label;
+  editorStatusBadge.innerHTML = ruleStatus.htmlLabel || ruleStatus.label;
   editorStatusBadge.dataset.status = ruleStatus.key;
   editorStatusBadge.title = getRuleStatusDescription(ruleStatus);
   card.querySelector('[data-field="name"]').value = rule.name || "";
@@ -730,6 +740,10 @@ function renderEditor() {
       updateCredentialSourceVisibility(currentSource, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
+      const newRuleStatus = getRuleStatus(getSelectedRule());
+      editorStatusBadge.innerHTML = newRuleStatus.htmlLabel || newRuleStatus.label;
+      editorStatusBadge.dataset.status = newRuleStatus.key;
+      editorStatusBadge.title = getRuleStatusDescription(newRuleStatus);
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
     });
     input.addEventListener("change", () => {
@@ -742,6 +756,10 @@ function renderEditor() {
       updateCredentialSourceVisibility(currentSource, sourceFields, sourceDetailsWrapper, syncHeadersInput, syncAuthorizationInput, syncCookiesInput);
       renderInlineValidation(getSelectedRule(), card);
       renderRuleList();
+      const newRuleStatus = getRuleStatus(getSelectedRule());
+      editorStatusBadge.innerHTML = newRuleStatus.htmlLabel || newRuleStatus.label;
+      editorStatusBadge.dataset.status = newRuleStatus.key;
+      editorStatusBadge.title = getRuleStatusDescription(newRuleStatus);
       renderSyncPreview(getSelectedRule(), syncPreview, syncTabs, syncPreviewContent);
     });
   });
