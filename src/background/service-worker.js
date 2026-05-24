@@ -17,6 +17,18 @@ const pendingRedirects = new Map();
 let appliedRuleWriteSignature = "";
 let i18nReady = null;
 
+const HYDRATION_TIMEOUT_MS = 5000;
+const COOKIE_TIMEOUT_MS = 3000;
+
+function withTimeout(promise, ms, label = "Operation") {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 chrome.webRequest.onBeforeSendHeaders.addListener(captureSourceRequest, CAPTURE_FILTER, CAPTURE_OPTIONS);
 
 chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
@@ -119,11 +131,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     try {
       const rules = await getRedirectRules();
-      const hasAutoSyncRules = rules.some((rule) =>
-        rule.enabled &&
-        hasSyncEnabled(rule) &&
-        [CREDENTIAL_SOURCES.storage, CREDENTIAL_SOURCES.cookie].includes(normalizeCredentialSource(rule))
-      );
+      const hasAutoSyncRules = rules.some((rule) => {
+        if (!rule.enabled || !hasSyncEnabled(rule) || ![CREDENTIAL_SOURCES.storage, CREDENTIAL_SOURCES.cookie].includes(normalizeCredentialSource(rule))) {
+          return false;
+        }
+        try {
+          const sourceUrl = getRepresentativeSourceUrl(rule.sourcePattern);
+          if (!sourceUrl) return false;
+          return new URL(tab.url).origin === new URL(sourceUrl).origin;
+        } catch (_error) {
+          return false;
+        }
+      });
 
       if (hasAutoSyncRules) {
         await prepareAndApplyRules(rules, { persistHydratedRules: true });
@@ -392,22 +411,26 @@ async function hydrateFromBrowserStorage(rule) {
       if (!sourceTab.id) continue;
 
       try {
-        const [result] = await chrome.scripting.executeScript({
-          target: { tabId: sourceTab.id },
-          args: [{
-            area: rule.storageArea || "localStorage",
-            authorizationKey: rule.authorizationKey || "",
-            headersKey: rule.headersKey || ""
-          }],
-          func: ({ area, authorizationKey, headersKey }) => {
-            const storage = area === "sessionStorage" ? window.sessionStorage : window.localStorage;
+        const [result] = await withTimeout(
+          chrome.scripting.executeScript({
+            target: { tabId: sourceTab.id },
+            args: [{
+              area: rule.storageArea || "localStorage",
+              authorizationKey: rule.authorizationKey || "",
+              headersKey: rule.headersKey || ""
+            }],
+            func: ({ area, authorizationKey, headersKey }) => {
+              const storage = area === "sessionStorage" ? window.sessionStorage : window.localStorage;
 
-            return {
-              authorization: authorizationKey ? storage.getItem(authorizationKey) || "" : "",
-              headers: headersKey ? storage.getItem(headersKey) || "" : ""
-            };
-          }
-        });
+              return {
+                authorization: authorizationKey ? storage.getItem(authorizationKey) || "" : "",
+                headers: headersKey ? storage.getItem(headersKey) || "" : ""
+              };
+            }
+          }),
+          HYDRATION_TIMEOUT_MS,
+          "Browser storage read"
+        );
 
         const storageValues = result?.result || {};
         const isIncognito = sourceTab.incognito;
@@ -421,7 +444,7 @@ async function hydrateFromBrowserStorage(rule) {
           : (isIncognito ? nextRule.incognitoSyncedHeaders : nextRule.syncedHeaders) || [];
 
         const cookiesValue = rule.syncCookies
-          ? await buildCookieHeaderFromRule(nextRule, sourceUrl, sourceTab.cookieStoreId)
+          ? await withTimeout(buildCookieHeaderFromRule(nextRule, sourceUrl, sourceTab.cookieStoreId), COOKIE_TIMEOUT_MS, "Cookie read")
           : (isIncognito ? nextRule.incognitoSyncedCookieHeader : nextRule.syncedCookieHeader) || "";
 
         if (isIncognito) {
@@ -475,7 +498,7 @@ async function hydrateFromCookiesForStore(rule, sourceUrl, storeId, isIncognito)
     if (storeId) {
       queryDetails.storeId = storeId;
     }
-    const cookies = await chrome.cookies.getAll(queryDetails);
+    const cookies = await withTimeout(chrome.cookies.getAll(queryDetails), COOKIE_TIMEOUT_MS, "Cookie query");
     const cookieNames = parseCsv(rule.cookieNames);
     const selectedCookies = cookieNames.length > 0
       ? cookies.filter((cookie) => cookieNames.includes(cookie.name))
@@ -556,7 +579,7 @@ async function buildCookieHeaderFromRule(rule, sourceUrl, storeId = null) {
   if (storeId) {
     queryDetails.storeId = storeId;
   }
-  const cookies = await chrome.cookies.getAll(queryDetails);
+  const cookies = await withTimeout(chrome.cookies.getAll(queryDetails), COOKIE_TIMEOUT_MS, "Cookie query");
   const selectedCookies = cookieNames.length > 0
     ? cookies.filter((cookie) => cookieNames.includes(cookie.name))
     : cookies;

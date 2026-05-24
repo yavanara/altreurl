@@ -97,8 +97,9 @@ const appVersionEl = document.querySelector("#appVersion");
 if (appVersionEl) {
   appVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 }
-let persistedRulesCache = await getRedirectRules();
-let rules = await getRedirectRules();
+const initialRules = await getRedirectRules();
+let persistedRulesCache = initialRules.map(rule => ({ ...rule }));
+let rules = initialRules;
 let selectedRuleId = "";
 let isSavingRule = false;
 let isRemovingRule = false;
@@ -113,7 +114,11 @@ const BACKGROUND_SYNC_FIELDS = [
   "syncedHeaders",
   "syncedAuthorization",
   "syncedCookieHeader",
-  "lastSyncedAt"
+  "lastSyncedAt",
+  "incognitoSyncedHeaders",
+  "incognitoSyncedAuthorization",
+  "incognitoSyncedCookieHeader",
+  "incognitoLastSyncedAt"
 ];
 const IMPORT_MODES = {
   draft: "draft",
@@ -239,13 +244,14 @@ function normalizeImportedRule(rule) {
   }
 
   const blankRule = createBlankRule();
+  const now = timestampNow();
 
   return {
     ...blankRule,
     ...rule,
     id: createRuleId(),
-    createdAt: timestampNow(),
-    modifiedAt: timestampNow(),
+    createdAt: now,
+    modifiedAt: now,
     enabled: Boolean(rule.enabled),
     name: String(rule.name || blankRule.name).trim() || blankRule.name,
     group: String(rule.group || "").trim()
@@ -1086,10 +1092,15 @@ async function saveRules(savedRules) {
     let response;
 
     try {
-      response = await chrome.runtime.sendMessage({
-        type: "SAVE_RULES",
-        rules: rulesToSave
-      });
+      response = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: "SAVE_RULES",
+          rules: rulesToSave
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(t("runtime.error.timeout"))), 30000)
+        )
+      ]);
     } catch (error) {
       throw new Error(error.message || t("runtime.error.apply"));
     }
@@ -1129,6 +1140,7 @@ async function saveCurrentRule(saveButton) {
     const savedRules = upsertRule(persistedRules, selectedRule);
     const appliedRules = await saveRules(savedRules);
 
+    persistedRulesCache = appliedRules.map(rule => ({ ...rule }));
     savedRuleIds = new Set(appliedRules.map((rule) => rule.id));
     rules = mergePersistedRulesWithDrafts(appliedRules, { committedRuleIds: new Set([selectedRule.id]) });
     render();
@@ -1137,8 +1149,13 @@ async function saveCurrentRule(saveButton) {
     notify(error.message, "error");
   } finally {
     isSavingRule = false;
-    saveButton.disabled = false;
-    saveButtonLabel.textContent = t("options.actions.saveRule");
+    // Query fresh DOM — render() may have replaced the original saveButton node
+    const freshSaveButton = editorPanel.querySelector('[data-action="saveRule"]');
+    if (freshSaveButton) {
+      freshSaveButton.disabled = false;
+      const freshLabel = freshSaveButton.querySelector('[data-role="saveRuleLabel"]');
+      if (freshLabel) freshLabel.textContent = t("options.actions.saveRule");
+    }
   }
 }
 
@@ -1498,7 +1515,7 @@ function renderExportPreviewRule(rule) {
   item.className = "import-preview-rule";
   item.dataset.issue = String(["conflict", "invalid", "waiting"].includes(status.key));
   name.textContent = rule.name || t("options.rules.unnamed");
-  meta.textContent = `${status.label} · ${rule.patternType || PATTERN_TYPES.wildcard} · ${rule.credentialMode || CREDENTIAL_MODES.manual}`;
+  meta.textContent = `${status.label || t(`common.${status.key}`) || status.key} · ${rule.patternType || PATTERN_TYPES.wildcard} · ${rule.credentialMode || CREDENTIAL_MODES.manual}`;
   issue.textContent = status.description || (hasExportableCredentials([rule])
     ? t("options.export.preview.sensitive")
     : t("common.ready"));
@@ -2095,9 +2112,6 @@ function removeMatchingImportRules(sourceRules, importedRule) {
   return sourceRules.filter((rule) => {
     const signatures = getImportRuleSignatures(rule);
     return !(
-      signatures.name === importedSignatures.name ||
-      signatures.source === importedSignatures.source ||
-      signatures.target === importedSignatures.target ||
       signatures.route === importedSignatures.route
     );
   });
@@ -2121,7 +2135,7 @@ function addDraftRule() {
   const blankRule = createBlankRule();
   rules = [blankRule, ...rules];
   selectedRuleId = blankRule.id;
-  selectedRuleIds = new Set([blankRule.id]);
+  selectedRuleIds = new Set([...selectedRuleIds, blankRule.id]);
   render();
   notify(t("options.toast.ruleAdded"));
 }

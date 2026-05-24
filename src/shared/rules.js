@@ -40,7 +40,7 @@ export function normalizeHeaderRows(headers = []) {
       name: String(header.name || "").trim(),
       value: String(header.value || "").trim()
     }))
-    .filter((header) => header.name && header.value);
+    .filter((header) => header.name);
 }
 
 export function normalizePatternType(patternType) {
@@ -107,7 +107,7 @@ export function buildSourceMatcher(sourcePattern, patternType = PATTERN_TYPES.wi
   return (url) => regex.test(url);
 }
 
-function escapeRegex(value) {
+export function escapeRegex(value) {
   return value.replace(/[\\^$+?.()|[\]{}]/g, "\\$&");
 }
 
@@ -194,8 +194,14 @@ function countRegexCaptureGroups(regexPattern = "") {
 
   for (let index = 0; index < regexPattern.length; index += 1) {
     const character = regexPattern[index];
-    const previousCharacter = regexPattern[index - 1];
-    const isEscaped = previousCharacter === "\\";
+
+    let backslashCount = 0;
+    let lookBack = index - 1;
+    while (lookBack >= 0 && regexPattern[lookBack] === "\\") {
+      backslashCount += 1;
+      lookBack -= 1;
+    }
+    const isEscaped = backslashCount % 2 === 1;
 
     if (character === "[" && !isEscaped) {
       inCharacterClass = true;
@@ -394,7 +400,7 @@ function getTargetConflictScope(targetUrl, patternType = PATTERN_TYPES.wildcard)
 
     return {
       origin: parsedUrl.origin,
-      pathPrefix: pathPrefix.endsWith("/") ? pathPrefix : pathPrefix,
+      pathPrefix: pathPrefix.endsWith("/") ? pathPrefix : `${pathPrefix}/`,
       raw: normalizedTargetUrl
     };
   } catch (_error) {
@@ -928,8 +934,8 @@ function assertUniqueDynamicRuleIds(dynamicRules) {
 }
 
 function getDynamicRuleLimit() {
-  return chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES ||
-    chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES ||
+  return chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES ??
+    chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES ??
     5000;
 }
 
@@ -991,9 +997,14 @@ export function createBlankRule() {
     targetUrl: "",
     authorization: "",
     headers: [],
+    cookies: [],
     syncedHeaders: [],
     syncedAuthorization: "",
     syncedCookieHeader: "",
-    lastSyncedAt: ""
+    lastSyncedAt: "",
+    incognitoSyncedHeaders: [],
+    incognitoSyncedAuthorization: "",
+    incognitoSyncedCookieHeader: "",
+    incognitoLastSyncedAt: ""
   };
 }

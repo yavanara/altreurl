@@ -1,4 +1,4 @@
-import { buildDynamicRules, getRuleSetIssuesByRuleId, normalizePatternType, PATTERN_TYPES } from "../shared/rules.js";
+import { buildDynamicRules, escapeRegex, getRuleSetIssuesByRuleId, normalizePatternType, PATTERN_TYPES } from "../shared/rules.js";
 import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS, getSuccessNotificationsEnabled, saveSuccessNotificationsEnabled } from "../shared/storage.js";
 import { applyFavicons } from "../shared/favicon.js";
 import { getThemedIconPath } from "../shared/icon.js";
@@ -186,6 +186,7 @@ async function getActiveTabContext() {
       return {
         isSupported: false,
         hostLabel: t("common.thisPage"),
+        host: "",
         hostname: "",
         origin: "",
         url: tab?.url || ""
@@ -204,6 +205,7 @@ async function getActiveTabContext() {
     return {
       isSupported: false,
       hostLabel: t("common.thisPage"),
+      host: "",
       hostname: "",
       origin: "",
       url: ""
@@ -272,9 +274,6 @@ function buildHostMatcher(hostPattern) {
   };
 }
 
-function escapeRegex(value) {
-  return value.replace(/[\\^$+?.()|[\]{}]/g, "\\$&");
-}
 
 function getRuleTooltip(rule, isEnabled = rule.enabled) {
   return [

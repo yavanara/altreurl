@@ -361,5 +361,6 @@
   "rules.error.applyDetail": "Unable to apply dynamic rules. {detail} {ruleSummary}",
   "runtime.error.apply": "Unable to apply dynamic rules.",
   "runtime.error.clearApply": "Unable to clear Altreurl apply error.",
-  "runtime.error.storedRules": "Unable to apply stored Altreurl rules."
+  "runtime.error.storedRules": "Unable to apply stored Altreurl rules.",
+  "runtime.error.timeout": "Save operation timed out. Please try again."
 }
