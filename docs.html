@@ -17,19 +17,18 @@
         <div class="grid gap-[6px] p-3 border border-line rounded-lg bg-panel shadow-soft">
           <label class="text-muted text-[0.78rem] font-extrabold uppercase" for="docs-version">Version</label>
           <select class="w-full min-h-[34px] border border-line rounded-md bg-panel text-text font-inherit font-bold" id="docs-version" data-doc-version>
-            <option value="v1.14.0">Latest</option>
-            <option value="v1.12.x">Previous</option>
+            <option value="v1.14.0">1.14.0 - latest</option>
+            <option value="v1.13.0">1.13.0</option>
+            <option value="v1.12.0">1.12.0</option>
           </select>
         </div>
         <nav class="grid items-stretch gap-[2px] p-2 border border-line rounded-lg bg-panel shadow-soft max-[960px]:grid-cols-4 max-[720px]:grid-cols-1">
           <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#introduction">Introduction</a>
           <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#quick-start">Quick start</a>
-          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#rules">Rules</a>
+          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#rules-engine">Rules & Engine</a>
           <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#credentials">Credentials</a>
-          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#popup">Popup</a>
-          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#import-export">Import/export</a>
-          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#permissions">Permissions</a>
-          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#troubleshooting">Troubleshooting</a>
+          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#generator">Swagger Generator</a>
+          <a class="block py-[7px] px-[9px] rounded-md hover:bg-accent-soft no-underline" href="#import-export">Import & Diagnostics</a>
         </nav>
       </aside>
 
@@ -58,113 +57,137 @@
           <section id="quick-start" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
             <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Quick start</h2>
             <ol>
-              <li class="text-muted break-words m-0">Install <strong>Altreurl</strong> from a browser store or load the packaged extension in Chromium developer mode.</li>
-              <li class="text-muted break-words m-0">Open the options page and create a rule with a source URL pattern and redirect target URL.</li>
-              <li class="text-muted break-words m-0">Choose wildcard for simple path forwarding or regex when you need capture groups.</li>
-              <li class="text-muted break-words m-0">Select a credential mode, save the rule, then trigger a matching request from your web app.</li>
-              <li class="text-muted break-words m-0">Use the popup on matching tabs to enable or disable contextual rules quickly.</li>
+              <li class="text-muted break-words m-0">Install <strong>Altreurl</strong> from a browser store and open the options page.</li>
+              <li class="text-muted break-words m-0">Create a rule with a source URL pattern and a redirect target URL.</li>
+              <li class="text-muted break-words m-0">Select a credential mode (e.g., Storage, Cookies, Request Learning).</li>
+              <li class="text-muted break-words m-0">Save the rule to activate it instantly. Use the popup menu on matching tabs to toggle it.</li>
             </ol>
-            <pre class="m-0 mt-[14px] overflow-auto p-3 border border-line rounded-md bg-accent-soft"><code class="text-text font-mono">Source:  https://api.example.com/users/*
-Target:  http://localhost:3000/users/*
-Mode:    Sync from source request</code></pre>
           </section>
 
-          <section id="rules" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Rules</h2>
+          <section id="rules-engine" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Rules & Engine</h2>
             <p class="m-0 text-muted break-words">
-              A rule describes what request should be matched, where it should be redirected,
-              and which request data may be added or replaced. Rules can be enabled, disabled,
-              grouped, searched, imported, exported, and inspected from diagnostics.
+              Altreurl converts your configuration into Chrome's native <strong>Declarative Net Request (DNR)</strong> rules for zero-latency redirects.
             </p>
             <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] max-[720px]:grid-cols-1 gap-3 mt-3">
               <div class="p-3 border border-line rounded-lg bg-accent-soft">
-                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Wildcard patterns</h3>
-                <p class="m-0 text-muted break-words">Use <code>*</code> for straightforward path forwarding, such as mirroring one API path to localhost.</p>
+                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Exact & Wildcard</h3>
+                <p class="m-0 text-muted break-words">Use literal URLs for exact matches (automatically forwards query strings), or use <code>*</code> to mirror an entire path prefix to localhost. Regex is available for capture groups.</p>
               </div>
               <div class="p-3 border border-line rounded-lg bg-accent-soft">
-                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Regex patterns</h3>
-                <p class="m-0 text-muted break-words">Use regex when the target URL needs capture groups or stricter matching.</p>
+                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Tab Isolation</h3>
+                <p class="m-0 text-muted break-words">Normal and Incognito tabs are completely isolated. Rules are generated twice under the hood to ensure synced credentials never leak across contexts.</p>
               </div>
             </div>
           </section>
 
           <section id="credentials" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Credentials</h2>
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Credential Hydration</h2>
+            <p class="m-0 text-muted break-words mb-3">
+              Credential handling is explicit per rule. Below are the 4 supported modes:
+            </p>
+            <table class="w-full border-collapse break-words">
+              <thead>
+                <tr>
+                  <th class="py-[9px] px-[10px] border border-line text-left align-top">Mode</th>
+                  <th class="py-[9px] px-[10px] border border-line text-left align-top">How it works</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="text-text font-bold break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Manual</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Provide fixed Authorization tokens or custom headers directly in the rule editor.</td>
+                </tr>
+                <tr>
+                  <td class="text-text font-bold break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Request Learning</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Sniffs headers from live network requests. Requires a "double-refresh": the first request teaches Altreurl the headers, and subsequent requests will inject them. Features <strong>401 Auto-Reset</strong>: if the target server returns 401, Altreurl automatically clears the saved credentials to force a re-sync.</td>
+                </tr>
+                <tr>
+                  <td class="text-text font-bold break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Browser Storage</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Instantly injects scripts into an open tab matching the source origin to extract tokens from <code>localStorage</code> or <code>sessionStorage</code>. Redirects work immediately without double-refreshing.</td>
+                </tr>
+                <tr>
+                  <td class="text-text font-bold break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Cookies</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Extracts cookies from the browser's native cookie store per tab context. Does not require an active tab to be open.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="generator" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Swagger Generator</h2>
             <p class="m-0 text-muted break-words">
-              Credential handling is explicit per rule. Use manual mode for fixed debug values, request
-              learning for headers from source traffic, browser storage sync for app-owned storage, or
-              cookie sync when the local backend needs a selected session cookie.
+              Altreurl can auto-generate redirect rules from a standard Swagger/OpenAPI v2/v3 JSON specification.
+            </p>
+            <ul class="mt-3 mb-0">
+              <li class="text-muted break-words m-0 mb-1"><strong>Specific Mode:</strong> Generates one precise regex rule for every single endpoint defined in the spec.</li>
+              <li class="text-muted break-words m-0 mb-1"><strong>Simple Mode (Unique Path):</strong> Generates one wildcard rule for every unique path, automatically stripping dynamic path parameters.</li>
+              <li class="text-muted break-words m-0"><strong>Simple Mode (Tags):</strong> Groups multiple endpoints by their Swagger Tag (e.g., "Users"), finds their common URL prefix, and creates exactly one wildcard rule for the entire group.</li>
+            </ul>
+          </section>
+
+          <section id="import-export" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Import, Export & Diagnostics</h2>
+            <p class="m-0 text-muted break-words mb-3">
+              Altreurl prioritizes safe distribution and visibility into your configuration.
+            </p>
+            <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] max-[720px]:grid-cols-1 gap-3">
+              <div class="p-3 border border-line rounded-lg bg-accent-soft">
+                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Smart Imports</h3>
+                <p class="m-0 text-muted break-words">Import JSON configs with 4 distinct conflict resolution modes: Draft, Skip, Disable, or Replace. You can review all duplicate conflicts before applying.</p>
+              </div>
+              <div class="p-3 border border-line rounded-lg bg-accent-soft">
+                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Privacy-Safe Export</h3>
+                <p class="m-0 text-muted break-words">When exporting rules to share with a team, you can choose to <strong>Redact</strong> or <strong>Remove</strong> credential values, preventing accidental token leaks.</p>
+              </div>
+            </div>
+            <div class="mt-3 p-3 border border-line rounded-lg bg-accent-soft">
+                <h3 class="m-0 mb-2 mt-0 text-[1.05rem] leading-[1.25] break-words">Diagnostics & Logging</h3>
+                <p class="m-0 text-muted break-words">The built-in Diagnostics dialog displays live DNR rule counts and the last 100 internal application logs. Logs are automatically sanitized to ensure active Authorization tokens or Cookies are never recorded.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="grid gap-[14px]" data-doc-panel="v1.13.0" hidden>
+          <section class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">v1.13.0 Archive</h2>
+            <p class="m-0 text-muted break-words">
+              <strong>Altreurl</strong> is a Chromium MV3 extension for redirecting configured request URLs,
+              forwarding selected headers, Authorization values, and cookies, and keeping local
+              backend debugging close to the browser.
+            </p>
+            <p class="m-0 text-muted break-words mt-3">
+              <strong>Quick start:</strong> Install the extension, create a rule with a source URL pattern and a redirect target.
+              Choose wildcard or regex for capture groups. Select a credential mode and save.
             </p>
             <table class="w-full mt-3 border-collapse break-words">
               <thead>
                 <tr>
-                  <th class="py-[9px] px-[10px] border border-line text-left align-top">Mode</th>
+                  <th class="py-[9px] px-[10px] border border-line text-left align-top">Credential Mode</th>
                   <th class="py-[9px] px-[10px] border border-line text-left align-top">Use when</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Manual</td>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">You already know the Authorization value or custom headers.</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">You already know the Authorization value.</td>
                 </tr>
                 <tr>
                   <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Request learning</td>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">The source request should teach <strong>Altreurl</strong> which headers to reuse.</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Source request should teach which headers to reuse.</td>
                 </tr>
                 <tr>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Browser storage</td>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Tokens live in localStorage or sessionStorage on the source origin.</td>
-                </tr>
-                <tr>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Cookies</td>
-                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">A selected Chrome cookie should be forwarded to the target request.</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Browser storage / Cookies</td>
+                  <td class="text-muted break-words m-0 py-[9px] px-[10px] border border-line text-left align-top">Tokens live in localStorage or native cookies.</td>
                 </tr>
               </tbody>
             </table>
           </section>
-
-          <section id="popup" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Popup</h2>
-            <p class="m-0 text-muted break-words">
-              The popup shows rules that match the active tab domain or origin. It is built for quick
-              toggles while testing a page, not for full rule editing. Use the options page for detailed
-              rule setup, import/export, and diagnostics.
-            </p>
-          </section>
-
-          <section id="import-export" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Import and export</h2>
-            <p class="m-0 text-muted break-words">
-              Exports can include all rules or a selected scope. Before sharing JSON, choose whether
-              credentials should be included, redacted, or removed. Imports show a preview so you can
-              review conflicts before writing changes.
-            </p>
-          </section>
-
-          <section id="permissions" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Permissions</h2>
-            <p class="m-0 text-muted break-words">
-              <strong>Altreurl</strong> uses Chromium extension APIs only for its debugging purpose: dynamic request
-              rules, request header learning, cookie reading for selected sync rules, scripting for
-              browser storage reads, tabs for contextual popup matching, and local extension storage.
-            </p>
-          </section>
-
-          <section id="troubleshooting" class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">Troubleshooting</h2>
-            <ul>
-              <li class="text-muted break-words m-0">If a rule is not ready, check the source pattern, target URL, enabled state, and credential mode.</li>
-              <li class="text-muted break-words m-0">If sync mode waits forever, trigger one matching source request before testing the redirect again.</li>
-              <li class="text-muted break-words m-0">If browser storage sync fails, keep a source-origin tab open and reload the options page.</li>
-              <li class="text-muted break-words m-0">If cookies are missing, confirm the cookie domain and browser profile match the source origin.</li>
-              <li class="text-muted break-words m-0">Use Diagnostics for dynamic rule counts, apply errors, and privacy-safe local logs.</li>
-            </ul>
-          </section>
         </section>
 
-        <section class="grid gap-[14px]" data-doc-panel="v1.12.x" hidden>
+        <section class="grid gap-[14px]" data-doc-panel="v1.12.0" hidden>
           <section class="p-[clamp(16px,3vw,26px)] border border-line rounded-lg bg-panel shadow-soft scroll-mt-[92px]">
-            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">v1.12.x notes</h2>
+            <h2 class="m-0 mb-[10px] text-[clamp(1.45rem,3vw,2.35rem)] leading-[1.1] break-words">v1.12.0 notes</h2>
             <p class="m-0 text-muted break-words">
               This archived documentation slot is reserved for the previous public release. Keep
               stable workflows here when rule editing, diagnostics, or credential sync changes.
