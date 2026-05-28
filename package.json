@@ -1,7 +1,7 @@
 {
   "name": "altreurl",
   "version": "1.0.0",
-  "description": "Static website for Altreurl v1.13.0, intended for GitHub Pages at:",
+  "description": "Static website for Altreurl v1.14.0, intended for GitHub Pages at:",
   "main": "theme.js",
   "scripts": {
     "build:css": "tailwindcss -i ./input.css -o ./styles.css",

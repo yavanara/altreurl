@@ -1,5 +1,5 @@
 const THEME_KEY = "altreurlWebTheme";
-const APP_VERSION = "v1.13.0";
+const APP_VERSION = "v1.14.0";
 const ORG_URL = "https://github.com/yavanara";
 const REPO_URL = "https://github.com/yavanara/altreurl";
 const DONATION_URL = "#";

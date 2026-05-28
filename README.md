@@ -1,6 +1,6 @@
 # Altreurl Web
 
-Static website for Altreurl v1.13.0, intended for GitHub Pages at:
+Static website for Altreurl v1.14.0, intended for GitHub Pages at:
 
 ```text
 https://yavanara.github.io/altreurl/
@@ -14,7 +14,7 @@ https://yavanara.github.io/altreurl/
 - `support.html`: support and known limitations.
 - `store-listing.html`: browser store listing copy, permission justification, and reviewer test instructions.
 - `assets/screenshots/`: release screenshots mirrored from the extension repo.
-- `assets/favicons/v2/`: v1.13.0 favicon set used by the extension.
+- `assets/favicons/v2/`: v1.14.0 favicon set used by the extension.
 
 ## Publish to GitHub Pages
 
