@@ -221,7 +221,7 @@ export function detectCredentials(headers = []) {
  * @param {'simple'|'specific'} patternStyle Pattern style to generate by default
  * @returns {Array<object>} List of candidate rules
  */
-export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyle = "specific") {
+export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyle = "specific", baseOn = "path") {
   if (!spec || typeof spec !== "object") return [];
 
   // Use spec.info.title as default parent group
@@ -253,54 +253,94 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
   const prodHost = prodClean.replace(/^https?:\/\//, "");
 
   if (patternStyle === "simple") {
-    // -------------------------------------------------------------------------
-    // SIMPLE MODE: Group all endpoints by Tag (Subgroup), select the shortest path
-    // as the base path for each Subgroup, and generate EXACTLY one wildcard rule candidate.
-    // -------------------------------------------------------------------------
-    const subgroupPathsMap = {}; // Maps tag -> array of path keys
-
-    Object.entries(paths).forEach(([pathKey, pathObj]) => {
-      Object.entries(pathObj).forEach(([methodKey, operationObj]) => {
-        const method = methodKey.toUpperCase();
-        if (!["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(method)) {
-          return;
+    if (baseOn === "tags") {
+      const tagGroups = {};
+      Object.entries(paths).forEach(([pathKey, pathObj]) => {
+        const methods = Object.keys(pathObj);
+        for (const mKey of methods) {
+          const method = mKey.toUpperCase();
+          if (["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(method)) {
+            const operationObj = pathObj[mKey];
+            const tags = operationObj?.tags || [];
+            const tag = tags.length > 0 ? String(tags[0]).trim() : "General";
+            if (!tagGroups[tag]) tagGroups[tag] = [];
+            tagGroups[tag].push(pathKey);
+          }
         }
-        const tags = operationObj.tags || [];
-        const subgroup = tags.length > 0 ? String(tags[0]).trim() : "General";
-        
-        if (!subgroupPathsMap[subgroup]) {
-          subgroupPathsMap[subgroup] = [];
-        }
-        subgroupPathsMap[subgroup].push(pathKey);
       });
-    });
 
-    Object.entries(subgroupPathsMap).forEach(([subgroup, pathList]) => {
-      // Find the shortest path key for this tag subgroup
-      const shortestPath = pathList.reduce((shortest, current) => {
-        return current.length < shortest.length ? current : shortest;
-      }, pathList[0]);
+      Object.entries(tagGroups).forEach(([tag, tagPaths]) => {
+        const fullGroupName = `${parentGroup} / ${tag}`;
+        const ruleName = tag;
+
+        const strippedPaths = tagPaths.map(p => p.split('{')[0]);
+        let prefix = strippedPaths[0];
+        for (let i = 1; i < strippedPaths.length; i++) {
+          while (strippedPaths[i].indexOf(prefix) !== 0) {
+            prefix = prefix.substring(0, prefix.length - 1);
+            if (prefix === "") break;
+          }
+        }
+        
+        const lastSlash = prefix.lastIndexOf('/');
+        if (lastSlash > -1) {
+          prefix = prefix.substring(0, lastSlash + 1);
+        }
+
+        const sourcePattern = `*://${prodHost}${prefix}*`;
+        const targetUrl = `${localClean}${prefix}`;
+
+        candidates.push({
+          name: ruleName,
+          group: fullGroupName,
+          patternType: "wildcard",
+          sourcePattern,
+          targetUrl,
+          swaggerPath: prefix || tag,
+          method: "ALL",
+          sourceAuth: false,
+          sourceCookies: false,
+          selected: true
+        });
+      });
+    } else {
+      // -------------------------------------------------------------------------
+      // SIMPLE MODE: Generate exactly ONE wildcard rule candidate per unique path
+      // -------------------------------------------------------------------------
+      Object.entries(paths).forEach(([pathKey, pathObj]) => {
+      // Find subgroup tag from operations on this path
+      let subgroup = "General";
+      const methods = Object.keys(pathObj);
+      for (const mKey of methods) {
+        const method = mKey.toUpperCase();
+        if (["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(method)) {
+          const operationObj = pathObj[mKey];
+          const tags = operationObj?.tags || [];
+          if (tags.length > 0) {
+            subgroup = String(tags[0]).trim();
+            break;
+          }
+        }
+      }
 
       const fullGroupName = `${parentGroup} / ${subgroup}`;
-      
-      // Rule Name in Simple Mode does not include method prefix (e.g. /api/msm_master_company/maindealer)
-      const ruleName = shortestPath;
+      const ruleName = pathKey;
 
       // Make a clean wildcard pattern: strip dynamic parameters if any or just add *
-      const paramMatches = shortestPath.match(/\{[^}]+\}/g) || [];
+      const paramMatches = pathKey.match(/\{[^}]+\}/g) || [];
       const hasParams = paramMatches.length > 0;
       
       let sourcePattern = "";
       let targetUrl = "";
 
       if (hasParams) {
-        const firstParamIndex = shortestPath.indexOf("{");
-        const staticPart = shortestPath.substring(0, firstParamIndex);
+        const firstParamIndex = pathKey.indexOf("{");
+        const staticPart = pathKey.substring(0, firstParamIndex);
         sourcePattern = `*://${prodHost}${staticPart}*`;
         targetUrl = `${localClean}${staticPart}`;
       } else {
-        sourcePattern = `*://${prodHost}${shortestPath}*`;
-        targetUrl = `${localClean}${shortestPath}`;
+        sourcePattern = `*://${prodHost}${pathKey}*`;
+        targetUrl = `${localClean}${pathKey}`;
       }
 
       candidates.push({
@@ -309,11 +349,12 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
         patternType: "wildcard",
         sourcePattern,
         targetUrl,
-        method: "ALL", // Method ALL shows it applies universally to the subgroup
-        swaggerPath: shortestPath,
+        method: "ALL", // Method ALL shows it applies universally to all methods on the path
+        swaggerPath: pathKey,
         subgroup
       });
-    });
+      });
+    }
   } else {
     // -------------------------------------------------------------------------
     // SPESIFIK MODE: Original behavior, one candidate for every single endpoint

@@ -2295,6 +2295,9 @@ const generateRedirectHistories = document.querySelector("#generateRedirectHisto
 const generateGlobalGroup = document.querySelector("#generateGlobalGroup");
 const generatePatternStyle = document.querySelector("#generatePatternStyle");
 const generatePatternStyleContainer = document.querySelector("#generatePatternStyleContainer");
+const generateBaseOn = document.querySelector("#generateBaseOn");
+const generateBaseOnContainer = document.querySelector("#generateBaseOnContainer");
+const generateProdUrlHistories = document.querySelector("#generateProdUrlHistories");
 
 const generateCredentialsWarning = document.querySelector("#generateCredentialsWarning");
 const generateCredentialsWarningMsg = document.querySelector("#generateCredentialsWarningMsg");
@@ -2315,6 +2318,7 @@ generateTabBtns.forEach((btn) => {
     
     // Toggle global configs visibility based on active tab
     generatePatternStyleContainer.hidden = generateActiveTab !== "swagger";
+    generateBaseOnContainer.hidden = generateActiveTab !== "swagger" || (document.querySelector('input[name="generatePatternStyleMode"]:checked')?.value || 'specific') !== 'simple';
     
     if (generateActiveTab === "tabs") {
       loadActiveBrowserTabs();
@@ -2334,6 +2338,7 @@ if (generateRuleBtn) {
     }
     // Initialize presets history
     initializeLocalPresetsHistory();
+    initializeProdUrlHistory();
     refreshGenerateState();
   });
 }
@@ -2380,7 +2385,28 @@ if (generateRedirectHistories) {
 
 if (generatePatternStyle) {
   generatePatternStyle.addEventListener("change", () => {
-    refreshGenerateState(true);
+    generateBaseOnContainer.hidden = (document.querySelector('input[name="generatePatternStyleMode"]:checked')?.value || 'specific') !== 'simple';
+    if (generateActiveTab === "swagger") {
+      refreshGenerateState();
+    }
+  });
+}
+
+if (generateBaseOn) {
+  generateBaseOn.addEventListener("change", () => {
+    if (generateActiveTab === "swagger") {
+      refreshGenerateState();
+    }
+  });
+}
+
+if (generateProdUrlHistories) {
+  generateProdUrlHistories.addEventListener("change", () => {
+    if (generateProdUrlHistories.value) {
+      generateBaseProdUrl.value = generateProdUrlHistories.value;
+      generateProdUrlHistories.value = ""; // Reset dropdown
+      if (generateActiveTab === "swagger") refreshGenerateState();
+    }
   });
 }
 
@@ -2625,7 +2651,8 @@ function handleLoadedSwaggerSpec(spec) {
     currentSwaggerSpec,
     generateBaseProdUrl.value || "https://api.production.com",
     generateRedirectUrl.value || "http://localhost:5000",
-    generatePatternStyle.value
+    document.querySelector('input[name="generatePatternStyleMode"]:checked')?.value || 'specific',
+    document.querySelector('input[name="generateBaseOnMode"]:checked')?.value || 'path'
   );
   
   // Mark all selected by default
@@ -2771,15 +2798,15 @@ function renderSwaggerEndpointsTable() {
     const select = document.createElement("select");
     select.className = "swagger-style-select";
     
-    const optRegex = new Option(t("common.regex"), "specific");
-    const optWild = new Option(t("common.wildcard"), "simple");
+    const optRegex = new Option(t("common.regex"), "regex");
+    const optWild = new Option(t("common.wildcard"), "wildcard");
     select.appendChild(optRegex);
     select.appendChild(optWild);
-    select.value = candidate.patternType === "regex" ? "specific" : "simple";
+    select.value = candidate.patternType === "regex" ? "regex" : "wildcard";
     
     select.addEventListener("change", () => {
-      candidate.patternType = select.value === "specific" ? "regex" : "wildcard";
-      // Re-trigger rule parsing for this individual row based on the select pattern style
+      candidate.patternType = select.value;
+      // Re-trigger rule parsing for this individual row based on the select pattern format
       rebuildSwaggerCandidate(candidate, select.value);
       renderGeneratedRulesPreview();
       updateGeneratePlayground();
@@ -2796,9 +2823,9 @@ function renderSwaggerEndpointsTable() {
   });
 }
 
-function rebuildSwaggerCandidate(candidate, style) {
+function rebuildSwaggerCandidate(candidate, patternType) {
   if (!currentSwaggerSpec) return;
-  // Re-generate this single rule candidate using custom style
+  // Re-generate this single rule candidate using custom pattern format
   const prodClean = (generateBaseProdUrl.value || "https://api.production.com").replace(/\/$/, "");
   const localClean = (generateRedirectUrl.value || "http://localhost:5000").replace(/\/$/, "");
   const prodHost = prodClean.replace(/^https?:\/\//, "");
@@ -2810,7 +2837,7 @@ function rebuildSwaggerCandidate(candidate, style) {
   let sourcePattern = "";
   let targetUrl = "";
   
-  if (style === "simple") {
+  if (patternType === "wildcard") {
     if (hasParams) {
       const firstParamIndex = pathKey.indexOf("{");
       const staticPart = pathKey.substring(0, firstParamIndex);
@@ -2855,7 +2882,8 @@ function refreshGenerateState(rebuildTable = true) {
       currentSwaggerSpec,
       generateBaseProdUrl.value || "https://api.production.com",
       generateRedirectUrl.value || "http://localhost:5000",
-      generatePatternStyle.value
+      document.querySelector('input[name="generatePatternStyleMode"]:checked')?.value || 'specific',
+      document.querySelector('input[name="generateBaseOnMode"]:checked')?.value || 'path'
     );
     
     // Restore state details and custom manual pattern styles
@@ -2883,11 +2911,53 @@ function refreshGenerateState(rebuildTable = true) {
         }
       }
       
-      if (previousNames.has(key)) c.name = previousNames.get(key);
-      if (previousGroups.has(key)) c.group = previousGroups.get(key);
+      // Bidirectional name, group, and pattern format restoration
+      let prevPatternType = null;
+      let prevName = null;
+      let prevGroup = null;
+
       if (previousPatternTypes.has(key)) {
-        c.patternType = previousPatternTypes.get(key);
-        rebuildSwaggerCandidate(c, c.patternType === "wildcard" ? "simple" : "specific");
+        prevPatternType = previousPatternTypes.get(key);
+      } else {
+        for (const [pk, pv] of previousPatternTypes.entries()) {
+          if (pk.startsWith(c.swaggerPath + ":")) {
+            prevPatternType = pv;
+            break;
+          }
+        }
+      }
+
+      if (previousNames.has(key)) {
+        prevName = previousNames.get(key);
+      } else {
+        for (const [pk, pv] of previousNames.entries()) {
+          if (pk.startsWith(c.swaggerPath + ":")) {
+            prevName = pv;
+            break;
+          }
+        }
+      }
+
+      if (previousGroups.has(key)) {
+        prevGroup = previousGroups.get(key);
+      } else {
+        for (const [pk, pv] of previousGroups.entries()) {
+          if (pk.startsWith(c.swaggerPath + ":")) {
+            prevGroup = pv;
+            break;
+          }
+        }
+      }
+
+      if (prevPatternType) {
+        c.patternType = prevPatternType;
+        rebuildSwaggerCandidate(c, c.patternType);
+      }
+      if (prevName) {
+        c.name = prevName;
+      }
+      if (prevGroup) {
+        c.group = prevGroup;
       }
     });
     
@@ -3079,7 +3149,8 @@ function updateFooterStats() {
     }
   } else {
     try {
-      new URL(redirectUrl);
+      const checkUrl = redirectUrl.replace(/:\*$/, ":80").replace(/:\*([/?#])/, ":80$1");
+      new URL(checkUrl);
       if (localError) localError.style.display = "none";
     } catch (e) {
       isredirectUrlValid = false;
@@ -3192,6 +3263,10 @@ async function saveGeneratedRules(enabled = true) {
   const redirectUrl = generateRedirectUrl.value.trim();
   if (redirectUrl) {
     await addLocalPresetToHistory(redirectUrl);
+    const prodUrl = generateBaseProdUrl.value.trim();
+    if (prodUrl) {
+      await addProdUrlPresetToHistory(prodUrl);
+    }
   }
   
   const now = new Date().toISOString();
@@ -3387,5 +3462,59 @@ async function addLocalPresetToHistory(url) {
     await initializeLocalPresetsHistory();
   } catch (err) {
     console.error("Failed to add local preset to history:", err);
+  }
+}
+
+async function initializeProdUrlHistory() {
+  if (!generateProdUrlHistories) return;
+  try {
+    const result = await chrome.storage.local.get({ prodUrlPresetsHistory: [] });
+    const history = Array.isArray(result.prodUrlPresetsHistory) ? result.prodUrlPresetsHistory : [];
+    
+    generateProdUrlHistories.innerHTML = "";
+    
+    if (history.length === 0) {
+      generateProdUrlHistories.style.display = "none";
+      return;
+    }
+    
+    generateProdUrlHistories.style.display = "";
+    
+    // Add placeholder first
+    const placeholderOpt = document.createElement("option");
+    placeholderOpt.value = "";
+    placeholderOpt.textContent = "History...";
+    placeholderOpt.disabled = true;
+    placeholderOpt.selected = true;
+    generateProdUrlHistories.appendChild(placeholderOpt);
+    
+    history.forEach((url) => {
+      const opt = document.createElement("option");
+      opt.value = url;
+      opt.textContent = url.replace(/^https?:\/\//, "");
+      generateProdUrlHistories.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Failed to load prod url history:", err);
+  }
+}
+
+async function addProdUrlPresetToHistory(url) {
+  if (!url || typeof url !== "string") return;
+  const cleanUrl = url.trim().replace(/\/$/, ""); 
+  if (!cleanUrl) return;
+  
+  try {
+    const result = await chrome.storage.local.get({ prodUrlPresetsHistory: [] });
+    let history = Array.isArray(result.prodUrlPresetsHistory) ? result.prodUrlPresetsHistory : [];
+    
+    history = history.filter(item => item !== cleanUrl);
+    history.unshift(cleanUrl);
+    history = history.slice(0, 5);
+    
+    await chrome.storage.local.set({ prodUrlPresetsHistory: history });
+    await initializeProdUrlHistory();
+  } catch (err) {
+    console.error("Failed to add prod url preset to history:", err);
   }
 }

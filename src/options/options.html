@@ -202,7 +202,10 @@
             <div class="global-config-grid">
               <label style="position: relative;">
                 <span><span data-i18n="options.generator.prodUrl"></span> <span style="color: var(--danger);">*</span></span>
-                <input id="generateBaseProdUrl" type="text" placeholder="https://api.example.com">
+                <div class="input-with-select">
+                  <input id="generateBaseProdUrl" type="text" placeholder="https://api.example.com">
+                  <select id="generateProdUrlHistories" style="display: none;"></select>
+                </div>
                 <span class="validation-error-msg" id="prodUrlError"></span>
               </label>
               <label style="position: relative;">
@@ -217,13 +220,34 @@
                 <span data-i18n="options.generator.globalGroup"></span>
                 <input id="generateGlobalGroup" type="text" placeholder="api_gateway">
               </label>
-              <label id="generatePatternStyleContainer" hidden>
-                <span data-i18n="options.generator.patternStyle"></span>
-                <select id="generatePatternStyle">
-                  <option value="specific" selected data-i18n="options.generator.ruleMode.specific"></option>
-                  <option value="simple" data-i18n="options.generator.ruleMode.simple"></option>
-                </select>
-              </label>
+              <div id="generatePatternStyleContainer" hidden style="display: flex; gap: 12px;">
+                <label style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <span data-i18n="options.generator.patternStyle"></span>
+                  <div class="segmented-control" id="generatePatternStyle">
+                    <label class="segment">
+                      <input type="radio" name="generatePatternStyleMode" value="specific" checked>
+                      <span data-i18n="options.generator.ruleMode.specific"></span>
+                    </label>
+                    <label class="segment">
+                      <input type="radio" name="generatePatternStyleMode" value="simple">
+                      <span data-i18n="options.generator.ruleMode.simple"></span>
+                    </label>
+                  </div>
+                </label>
+                <label id="generateBaseOnContainer" hidden style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <span data-i18n="options.generator.baseOn"></span>
+                  <div class="segmented-control" id="generateBaseOn">
+                    <label class="segment">
+                      <input type="radio" name="generateBaseOnMode" value="path" checked>
+                      <span data-i18n="options.generator.baseOn.uniquePath"></span>
+                    </label>
+                    <label class="segment">
+                      <input type="radio" name="generateBaseOnMode" value="tags">
+                      <span data-i18n="options.generator.baseOn.tags"></span>
+                    </label>
+                  </div>
+                </label>
+              </div>
             </div>
             
             <!-- Credentials notification area -->
