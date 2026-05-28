@@ -10,8 +10,16 @@ import {
   hasSyncEnabled,
   isRegexPatternValid,
   isRegexSubstitutionValid,
-  isWaitingForSyncCapture
+  isWaitingForSyncCapture,
+  buildSourceMatcher
 } from "../shared/rules.js";
+import {
+  parseCurlCommand,
+  suggestPatterns,
+  detectCredentials,
+  parseSwaggerSpec,
+  escapeRegex
+} from "../shared/generator.js";
 import {
   appendDiagnosticLog,
   clearDiagnosticLogs,
@@ -2245,6 +2253,1045 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+/* ==========================================
+   Generate Rule Feature Logic
+   ========================================== */
+let generateActiveTab = "curl"; // curl, url, tabs, swagger
+let generateParsedCandidates = []; // Array of rule candidates
+let generateSingleUrlSelectedPattern = null; // Single url selected suggestion { type, pattern }
+let generateDetectedCredentials = null; // Detected auth/cookies
+let currentSwaggerSpec = null; // Parsed Swagger JSON Spec
+
+// DOM Bindings
+const generateRuleBtn = document.querySelector("#generateRule");
+const generateRuleDialog = document.querySelector("#generateRuleDialog");
+const generateCancelTop = document.querySelector("#generateCancelTop");
+const generateCancel = document.querySelector("#generateCancel");
+const generateSaveDraft = document.querySelector("#generateSaveDraft");
+const generateSaveEnable = document.querySelector("#generateSaveEnable");
+
+const generateTabBtns = document.querySelectorAll(".generate-tab-btn");
+const generateTabContents = document.querySelectorAll(".generate-tab-content");
+
+const generateCurlInput = document.querySelector("#generateCurlInput");
+const generateUrlInput = document.querySelector("#generateUrlInput");
+const generateUrlPatterns = document.querySelector("#generateUrlPatterns");
+const generateUrlPatternsList = document.querySelector("#generateUrlPatternsList");
+const generateTabsList = document.querySelector("#generateTabsList");
+const generateSwaggerFile = document.querySelector("#generateSwaggerFile");
+const generateSwaggerUrl = document.querySelector("#generateSwaggerUrl");
+const btnLoadSwaggerUrl = document.querySelector("#btnLoadSwaggerUrl");
+
+const swaggerEndpointsContainer = document.querySelector("#swaggerEndpointsContainer");
+const swaggerEndpointsBody = document.querySelector("#swaggerEndpointsBody");
+const swaggerEndpointSearch = document.querySelector("#swaggerEndpointSearch");
+const swaggerSelectAll = document.querySelector("#swaggerSelectAll");
+const swaggerDeselectAll = document.querySelector("#swaggerDeselectAll");
+const swaggerHeaderSelectAll = document.querySelector("#swaggerHeaderSelectAll");
+
+const generateBaseProdUrl = document.querySelector("#generateBaseProdUrl");
+const generateRedirectUrl = document.querySelector("#generateRedirectUrl");
+const generateRedirectHistories = document.querySelector("#generateRedirectHistories");
+const generateGlobalGroup = document.querySelector("#generateGlobalGroup");
+const generatePatternStyle = document.querySelector("#generatePatternStyle");
+const generatePatternStyleContainer = document.querySelector("#generatePatternStyleContainer");
+
+const generateCredentialsWarning = document.querySelector("#generateCredentialsWarning");
+const generateCredentialsWarningMsg = document.querySelector("#generateCredentialsWarningMsg");
+const generateSyncAuthCheckbox = document.querySelector("#generateSyncAuthCheckbox");
+const generateSyncCookieCheckbox = document.querySelector("#generateSyncCookieCheckbox");
+
+const generatePlaygroundInput = document.querySelector("#generatePlaygroundInput");
+const generatePlaygroundStatus = document.querySelector("#generatePlaygroundStatus");
+const generatePlaygroundRedirectResult = document.querySelector("#generatePlaygroundRedirectResult");
+const generateRuleStatsMsg = document.querySelector("#generateRuleStatsMsg");
+
+// 1. Initialize Tabs navigation
+generateTabBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    generateActiveTab = btn.dataset.tab;
+    generateTabBtns.forEach((b) => b.classList.toggle("is-active", b === btn));
+    generateTabContents.forEach((c) => c.classList.toggle("is-active", c.dataset.tabContent === generateActiveTab));
+    
+    // Toggle global configs visibility based on active tab
+    generatePatternStyleContainer.hidden = generateActiveTab !== "swagger";
+    
+    if (generateActiveTab === "tabs") {
+      loadActiveBrowserTabs();
+    }
+    
+    refreshGenerateState();
+  });
+});
+
+// 2. Open / Close dialog
+if (generateRuleBtn) {
+  generateRuleBtn.addEventListener("click", () => {
+    generateRuleDialog.showModal();
+    // Default open tabs query if tabs chosen
+    if (generateActiveTab === "tabs") {
+      loadActiveBrowserTabs();
+    }
+    // Initialize presets history
+    initializeLocalPresetsHistory();
+    refreshGenerateState();
+  });
+}
+
+function closeGenerateDialog() {
+  generateRuleDialog.close();
+  // Reset states
+  generateCurlInput.value = "";
+  generateUrlInput.value = "";
+  generateSwaggerFile.value = "";
+  generateSwaggerUrl.value = "";
+  swaggerEndpointSearch.value = "";
+  generatePlaygroundInput.value = "";
+  generateParsedCandidates = [];
+  generateSingleUrlSelectedPattern = null;
+  generateDetectedCredentials = null;
+  currentSwaggerSpec = null;
+  swaggerEndpointsContainer.hidden = true;
+  generateUrlPatterns.hidden = true;
+  generateCredentialsWarning.hidden = true;
+}
+
+[generateCancel, generateCancelTop].forEach((btn) => {
+  if (btn) btn.addEventListener("click", closeGenerateDialog);
+});
+
+// Presets mapping
+if (generateRedirectHistories) {
+  generateRedirectHistories.addEventListener("change", () => {
+    if (generateRedirectHistories.value) {
+      generateRedirectUrl.value = generateRedirectHistories.value;
+      generateRedirectHistories.value = ""; // Reset dropdown to placeholder option "History..."
+      generateRedirectUrl.dispatchEvent(new Event("input"));
+    }
+  });
+}
+
+[generateBaseProdUrl, generateRedirectUrl, generateGlobalGroup].forEach((ctrl) => {
+  if (ctrl) {
+    ctrl.addEventListener("input", () => refreshGenerateState(false));
+    ctrl.addEventListener("change", () => refreshGenerateState(false));
+  }
+});
+
+if (generatePatternStyle) {
+  generatePatternStyle.addEventListener("change", () => {
+    refreshGenerateState(true);
+  });
+}
+
+// cURL Parsing listener
+if (generateCurlInput) {
+  generateCurlInput.addEventListener("input", () => {
+    const curl = generateCurlInput.value.trim();
+    if (!curl) {
+      generateParsedCandidates = [];
+      generateDetectedCredentials = null;
+      refreshGenerateState();
+      return;
+    }
+    
+    const parsed = parseCurlCommand(curl);
+    if (parsed) {
+      // Auto populate prod host if empty
+      try {
+        const u = new URL(parsed.url);
+        if (!generateBaseProdUrl.value) {
+          generateBaseProdUrl.value = u.origin;
+        }
+      } catch(e) {}
+      
+      // Detect credentials
+      generateDetectedCredentials = detectCredentials(parsed.headers);
+      
+      // Candidate base
+      const pathname = getUrlPathname(parsed.url);
+      const host = getUrlHost(parsed.url);
+      const baseProd = generateBaseProdUrl.value || `${parsed.url.split('://')[0]}://${host}`;
+      const baseLocal = generateRedirectUrl.value || "http://localhost:5000";
+      
+      const sourcePattern = `*://${host}${pathname}*`;
+      const targetUrl = `${baseLocal}${pathname}`;
+      const ruleName = `[cURL] ${pathname || '/'}`;
+      const groupName = generateGlobalGroup.value.trim() || host;
+      
+      generateParsedCandidates = [{
+        name: ruleName,
+        group: groupName,
+        patternType: "wildcard",
+        sourcePattern,
+        targetUrl,
+        selected: true,
+        method: parsed.method,
+        headers: parsed.headers
+      }];
+    } else {
+      generateParsedCandidates = [];
+      generateDetectedCredentials = null;
+    }
+    refreshGenerateState();
+  });
+}
+
+// Single URL Parsing listener
+if (generateUrlInput) {
+  generateUrlInput.addEventListener("input", () => {
+    const urlVal = generateUrlInput.value.trim();
+    if (!urlVal) {
+      generateParsedCandidates = [];
+      generateSingleUrlSelectedPattern = null;
+      refreshGenerateState();
+      return;
+    }
+    
+    const suggestions = suggestPatterns(urlVal);
+    if (suggestions.length > 0) {
+      try {
+        const u = new URL(urlVal.startsWith("http") ? urlVal : "https://" + urlVal);
+        if (!generateBaseProdUrl.value) {
+          generateBaseProdUrl.value = u.origin;
+        }
+      } catch(e) {}
+      
+      // If we don't have a selected pattern yet, select the second one (wildcard path) or first
+      if (!generateSingleUrlSelectedPattern) {
+        generateSingleUrlSelectedPattern = suggestions[1] || suggestions[0];
+      }
+      
+      // Populate candidates
+      buildSingleUrlCandidate(urlVal);
+    } else {
+      generateParsedCandidates = [];
+      generateSingleUrlSelectedPattern = null;
+    }
+    refreshGenerateState();
+  });
+}
+
+function buildSingleUrlCandidate(urlVal) {
+  if (!generateSingleUrlSelectedPattern) return;
+  
+  const pathname = getUrlPathname(urlVal);
+  const host = getUrlHost(urlVal);
+  const baseLocal = generateRedirectUrl.value || "http://localhost:5000";
+  
+  const sourcePattern = generateSingleUrlSelectedPattern.pattern;
+  // If Regex, convert target as well
+  let targetUrl = `${baseLocal}${pathname}`;
+  let patternType = "wildcard";
+  
+  if (generateSingleUrlSelectedPattern.type === "regex_dynamic") {
+    patternType = "regex";
+    // For single dynamic URL, suggest group replacement if path matched: e.g. replacing /users/123/profile -> /users/$1/profile
+    const segments = pathname.split("/");
+    let groupCount = 0;
+    const substSegments = segments.map((seg) => {
+      const isNumeric = /^\d+$/.test(seg);
+      const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(seg);
+      if (seg && (isNumeric || isUuid)) {
+        groupCount++;
+        return `$${groupCount}`;
+      }
+      return seg;
+    });
+    targetUrl = `${baseLocal}${substSegments.join("/")}`;
+  }
+  
+  generateParsedCandidates = [{
+    name: `[Quick URL] ${pathname || '/'}`,
+    group: generateGlobalGroup.value.trim() || host,
+    patternType,
+    sourcePattern,
+    targetUrl,
+    selected: true
+  }];
+}
+
+// Active Tabs loader
+async function loadActiveBrowserTabs() {
+  if (typeof chrome === "undefined" || !chrome.tabs) {
+    generateTabsList.innerHTML = `<div class="chrome-tab-item"><div class="chrome-tab-title">Chrome tabs API not available</div></div>`;
+    return;
+  }
+  
+  try {
+    const tabs = await chrome.tabs.query({ windowType: "normal" });
+    if (tabs.length === 0) {
+      generateTabsList.innerHTML = `<div class="chrome-tab-item"><div class="chrome-tab-title">No active tabs found</div></div>`;
+      return;
+    }
+    
+    generateTabsList.replaceChildren(...tabs.filter(t => t.url && t.url.startsWith("http")).map((tab) => {
+      const item = document.createElement("div");
+      item.className = "chrome-tab-item";
+      
+      const fav = document.createElement("img");
+      fav.src = tab.favIconUrl || "../shared/imgs/icons/b/icons8-book-32.png";
+      fav.width = 16;
+      fav.height = 16;
+      
+      const title = document.createElement("span");
+      title.className = "chrome-tab-title";
+      title.textContent = tab.title || "Untitled Tab";
+      
+      const url = document.createElement("span");
+      url.className = "chrome-tab-url";
+      url.textContent = tab.url;
+      
+      item.appendChild(fav);
+      item.appendChild(title);
+      item.appendChild(url);
+      
+      item.addEventListener("click", () => {
+        // Populate quick URL tab instead!
+        generateUrlInput.value = tab.url;
+        generateActiveTab = "url";
+        
+        // Toggle tabs
+        generateTabBtns.forEach((b) => b.classList.toggle("is-active", b.dataset.tab === "url"));
+        generateTabContents.forEach((c) => c.classList.toggle("is-active", c.dataset.tabContent === "url"));
+        
+        // Trigger quick URL listener logic
+        generateUrlInput.dispatchEvent(new Event("input"));
+      });
+      
+      return item;
+    }));
+  } catch(err) {
+    generateTabsList.innerHTML = `<div class="chrome-tab-item"><div class="chrome-tab-title">Error querying tabs: ${err.message}</div></div>`;
+  }
+}
+
+// Swagger listeners
+if (generateSwaggerFile) {
+  generateSwaggerFile.addEventListener("change", async () => {
+    const file = generateSwaggerFile.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const spec = JSON.parse(e.target.result);
+        handleLoadedSwaggerSpec(spec);
+      } catch (err) {
+        notify(t("options.generator.swagger.invalidSpec", { message: err.message }), "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+if (btnLoadSwaggerUrl) {
+  btnLoadSwaggerUrl.addEventListener("click", async () => {
+    const url = generateSwaggerUrl.value.trim();
+    if (!url) return;
+    
+    btnLoadSwaggerUrl.disabled = true;
+    btnLoadSwaggerUrl.textContent = t("options.generator.swagger.loading");
+    
+    try {
+      const res = await fetch(url);
+      const spec = await res.json();
+      handleLoadedSwaggerSpec(spec);
+    } catch(err) {
+      notify(t("options.generator.swagger.loadFailed", { message: err.message }), "error");
+    } finally {
+      btnLoadSwaggerUrl.disabled = false;
+      btnLoadSwaggerUrl.textContent = t("options.generator.swagger.load");
+    }
+  });
+}
+
+function handleLoadedSwaggerSpec(spec) {
+  currentSwaggerSpec = spec;
+  
+  // Set default group name based on spec title
+  if (spec.info?.title) {
+    generateGlobalGroup.value = spec.info.title.trim().replace(/\s+/g, "_").toLowerCase();
+  }
+  
+  // Try to find the spec host/basePath or defaults
+  if (spec.host) {
+    const protocol = spec.schemes ? spec.schemes[0] + "://" : "https://";
+    generateBaseProdUrl.value = protocol + spec.host;
+  }
+  
+  // Generate candidates
+  generateParsedCandidates = parseSwaggerSpec(
+    currentSwaggerSpec,
+    generateBaseProdUrl.value || "https://api.production.com",
+    generateRedirectUrl.value || "http://localhost:5000",
+    generatePatternStyle.value
+  );
+  
+  // Mark all selected by default
+  generateParsedCandidates.forEach(c => c.selected = true);
+  
+  swaggerEndpointsContainer.hidden = false;
+  refreshGenerateState();
+}
+
+// Swagger endpoints actions
+if (swaggerEndpointSearch) {
+  swaggerEndpointSearch.addEventListener("input", renderSwaggerEndpointsTable);
+}
+
+function onCandidateSelectionChange() {
+  updateFooterStats();
+  renderGeneratedRulesPreview();
+  updateGeneratePlayground();
+}
+
+if (swaggerSelectAll) {
+  swaggerSelectAll.addEventListener("click", () => {
+    generateParsedCandidates.forEach(c => c.selected = true);
+    swaggerHeaderSelectAll.checked = true;
+    renderSwaggerEndpointsTable();
+    onCandidateSelectionChange();
+  });
+}
+
+if (swaggerDeselectAll) {
+  swaggerDeselectAll.addEventListener("click", () => {
+    generateParsedCandidates.forEach(c => c.selected = false);
+    swaggerHeaderSelectAll.checked = false;
+    renderSwaggerEndpointsTable();
+    onCandidateSelectionChange();
+  });
+}
+
+if (swaggerHeaderSelectAll) {
+  swaggerHeaderSelectAll.addEventListener("change", () => {
+    const isChecked = swaggerHeaderSelectAll.checked;
+    generateParsedCandidates.forEach(c => c.selected = isChecked);
+    renderSwaggerEndpointsTable();
+    onCandidateSelectionChange();
+  });
+}
+
+// Render Swagger endpoints table inline
+function renderSwaggerEndpointsTable() {
+  const query = swaggerEndpointSearch.value.trim().toLowerCase();
+  
+  const filtered = generateParsedCandidates.filter((c) => {
+    return !query || c.swaggerPath.toLowerCase().includes(query) || c.subgroup.toLowerCase().includes(query) || c.name.toLowerCase().includes(query);
+  });
+  
+  swaggerEndpointsBody.innerHTML = "";
+  
+  if (filtered.length === 0) {
+    swaggerEndpointsBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted);" data-i18n="common.noMatches">No matching endpoints found</td></tr>`;
+    return;
+  }
+  
+  filtered.forEach((candidate, index) => {
+    const row = document.createElement("tr");
+    
+    // Checkbox col
+    const selectTd = document.createElement("td");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = candidate.selected;
+    checkbox.addEventListener("change", () => {
+      candidate.selected = checkbox.checked;
+      onCandidateSelectionChange();
+    });
+    selectTd.appendChild(checkbox);
+    
+    // Method col
+    const methodTd = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "method-badge";
+    badge.dataset.method = candidate.method;
+    badge.textContent = candidate.method;
+    methodTd.appendChild(badge);
+    
+    // Path / Subgroup col
+    const pathTd = document.createElement("td");
+    const container = document.createElement("div");
+    container.className = "swagger-path-container";
+    const pathText = document.createElement("span");
+    pathText.className = "swagger-path-text";
+    pathText.textContent = candidate.swaggerPath;
+    const subgroupText = document.createElement("span");
+    subgroupText.className = "swagger-subgroup-text";
+    subgroupText.textContent = candidate.subgroup;
+    container.appendChild(pathText);
+    container.appendChild(subgroupText);
+    pathTd.appendChild(container);
+    
+    // Edit Details col
+    const editTd = document.createElement("td");
+    const editFields = document.createElement("div");
+    editFields.className = "swagger-edit-fields";
+    
+    // Name Row
+    const nameRow = document.createElement("div");
+    nameRow.className = "swagger-edit-row";
+    const nameLabel = document.createElement("span");
+    nameLabel.textContent = t("common.name") + ":";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "swagger-inline-input";
+    nameInput.value = candidate.name;
+    nameInput.addEventListener("input", () => {
+      candidate.name = nameInput.value.trim();
+      renderGeneratedRulesPreview();
+      updateGeneratePlayground();
+    });
+    nameRow.appendChild(nameLabel);
+    nameRow.appendChild(nameInput);
+    
+    // Group Row
+    const groupRow = document.createElement("div");
+    groupRow.className = "swagger-edit-row";
+    const groupLabel = document.createElement("span");
+    groupLabel.textContent = t("common.group") + ":";
+    const groupInput = document.createElement("input");
+    groupInput.type = "text";
+    groupInput.className = "swagger-inline-input";
+    groupInput.value = candidate.group;
+    groupInput.addEventListener("input", () => {
+      candidate.group = groupInput.value.trim();
+      renderGeneratedRulesPreview();
+    });
+    groupRow.appendChild(groupLabel);
+    groupRow.appendChild(groupInput);
+    
+    editFields.appendChild(nameRow);
+    editFields.appendChild(groupRow);
+    editTd.appendChild(editFields);
+    
+    // Style select col
+    const styleTd = document.createElement("td");
+    const select = document.createElement("select");
+    select.className = "swagger-style-select";
+    
+    const optRegex = new Option(t("common.regex"), "specific");
+    const optWild = new Option(t("common.wildcard"), "simple");
+    select.appendChild(optRegex);
+    select.appendChild(optWild);
+    select.value = candidate.patternType === "regex" ? "specific" : "simple";
+    
+    select.addEventListener("change", () => {
+      candidate.patternType = select.value === "specific" ? "regex" : "wildcard";
+      // Re-trigger rule parsing for this individual row based on the select pattern style
+      rebuildSwaggerCandidate(candidate, select.value);
+      renderGeneratedRulesPreview();
+      updateGeneratePlayground();
+    });
+    styleTd.appendChild(select);
+    
+    row.appendChild(selectTd);
+    row.appendChild(methodTd);
+    row.appendChild(pathTd);
+    row.appendChild(editTd);
+    row.appendChild(styleTd);
+    
+    swaggerEndpointsBody.appendChild(row);
+  });
+}
+
+function rebuildSwaggerCandidate(candidate, style) {
+  if (!currentSwaggerSpec) return;
+  // Re-generate this single rule candidate using custom style
+  const prodClean = (generateBaseProdUrl.value || "https://api.production.com").replace(/\/$/, "");
+  const localClean = (generateRedirectUrl.value || "http://localhost:5000").replace(/\/$/, "");
+  const prodHost = prodClean.replace(/^https?:\/\//, "");
+  
+  const pathKey = candidate.swaggerPath;
+  const paramMatches = pathKey.match(/\{[^}]+\}/g) || [];
+  const hasParams = paramMatches.length > 0;
+  
+  let sourcePattern = "";
+  let targetUrl = "";
+  
+  if (style === "simple") {
+    if (hasParams) {
+      const firstParamIndex = pathKey.indexOf("{");
+      const staticPart = pathKey.substring(0, firstParamIndex);
+      sourcePattern = `*://${prodHost}${staticPart}*`;
+      targetUrl = `${localClean}${staticPart}`;
+    } else {
+      sourcePattern = `*://${prodHost}${pathKey}*`;
+      targetUrl = `${localClean}${pathKey}`;
+    }
+    candidate.patternType = "wildcard";
+  } else {
+    let regexPath = escapeRegex(pathKey);
+    paramMatches.forEach((param) => {
+      const escapedParam = escapeRegex(param);
+      regexPath = regexPath.replace(escapedParam, "([^\\/]+)");
+    });
+    const escapedProdHost = escapeRegex(prodHost);
+    sourcePattern = `^https?:\\/\\/${escapedProdHost}${regexPath}(?:\\?.*)?$`;
+    
+    let targetPath = pathKey;
+    paramMatches.forEach((param, index) => {
+      targetPath = targetPath.replace(param, `$${index + 1}`);
+    });
+    targetUrl = `${localClean}${targetPath}`;
+    candidate.patternType = "regex";
+  }
+  
+  candidate.sourcePattern = sourcePattern;
+  candidate.targetUrl = targetUrl;
+}
+
+// General refresh and UI updates
+function refreshGenerateState(rebuildTable = true) {
+  // If Swagger active and we have specs loaded, re-generate candidates list if base urls changed
+  if (generateActiveTab === "swagger" && currentSwaggerSpec) {
+    const previousSelections = new Map(generateParsedCandidates.map(c => [c.swaggerPath + ":" + c.method, c.selected]));
+    const previousNames = new Map(generateParsedCandidates.map(c => [c.swaggerPath + ":" + c.method, c.name]));
+    const previousGroups = new Map(generateParsedCandidates.map(c => [c.swaggerPath + ":" + c.method, c.group]));
+    const previousPatternTypes = new Map(generateParsedCandidates.map(c => [c.swaggerPath + ":" + c.method, c.patternType]));
+    
+    generateParsedCandidates = parseSwaggerSpec(
+      currentSwaggerSpec,
+      generateBaseProdUrl.value || "https://api.production.com",
+      generateRedirectUrl.value || "http://localhost:5000",
+      generatePatternStyle.value
+    );
+    
+    // Restore state details and custom manual pattern styles
+    generateParsedCandidates.forEach((c) => {
+      const key = c.swaggerPath + ":" + c.method;
+      
+      // Bidirectional selection bridge between Simple (ALL) and Specific (GET/POST) modes
+      if (previousSelections.has(key)) {
+        c.selected = previousSelections.get(key);
+      } else {
+        if (c.method === "ALL") {
+          let anySelected = false;
+          for (const [prevKey, prevVal] of previousSelections.entries()) {
+            if (prevKey.startsWith(c.swaggerPath + ":") && prevVal === true) {
+              anySelected = true;
+              break;
+            }
+          }
+          c.selected = anySelected;
+        } else {
+          const simpleKey = c.swaggerPath + ":ALL";
+          if (previousSelections.has(simpleKey)) {
+            c.selected = previousSelections.get(simpleKey);
+          }
+        }
+      }
+      
+      if (previousNames.has(key)) c.name = previousNames.get(key);
+      if (previousGroups.has(key)) c.group = previousGroups.get(key);
+      if (previousPatternTypes.has(key)) {
+        c.patternType = previousPatternTypes.get(key);
+        rebuildSwaggerCandidate(c, c.patternType === "wildcard" ? "simple" : "specific");
+      }
+    });
+    
+    if (rebuildTable) {
+      renderSwaggerEndpointsTable();
+    }
+  }
+  
+  // If Quick URL active, render pattern lists
+  if (generateActiveTab === "url") {
+    renderQuickUrlSuggestions();
+  }
+  
+  // Render credentials warning
+  renderCredentialsWarningBlock();
+  
+  // Update Live matching result
+  updateGeneratePlayground();
+  
+  // Render live Rule Preview cards
+  renderGeneratedRulesPreview();
+  
+  // Update footer statistics
+  updateFooterStats();
+}
+
+function renderQuickUrlSuggestions() {
+  const urlVal = generateUrlInput.value.trim();
+  if (!urlVal) {
+    generateUrlPatterns.hidden = true;
+    return;
+  }
+  
+  const suggestions = suggestPatterns(urlVal);
+  if (suggestions.length === 0) {
+    generateUrlPatterns.hidden = true;
+    return;
+  }
+  
+  generateUrlPatterns.hidden = false;
+  generateUrlPatternsList.replaceChildren(...suggestions.map((s) => {
+    const card = document.createElement("div");
+    card.className = "chrome-tab-item";
+    if (generateSingleUrlSelectedPattern && generateSingleUrlSelectedPattern.type === s.type) {
+      card.className += " is-active";
+    }
+    
+    const title = document.createElement("span");
+    title.className = "chrome-tab-title";
+    title.style.fontFamily = "monospace";
+    title.textContent = s.pattern;
+    
+    const desc = document.createElement("span");
+    desc.className = "chrome-tab-url";
+    desc.textContent = t(s.descriptionKey);
+    
+    card.appendChild(title);
+    card.appendChild(desc);
+    
+    card.addEventListener("click", () => {
+      generateSingleUrlSelectedPattern = s;
+      buildSingleUrlCandidate(urlVal);
+      refreshGenerateState();
+    });
+    
+    return card;
+  }));
+}
+
+function renderCredentialsWarningBlock() {
+  if (generateActiveTab === "curl" && generateDetectedCredentials && (generateDetectedCredentials.hasAuth || generateDetectedCredentials.hasCookie)) {
+    generateCredentialsWarning.hidden = false;
+    
+    let msg = "";
+    if (generateDetectedCredentials.hasAuth && generateDetectedCredentials.hasCookie) {
+      msg = t("options.generator.credentials.bothDetected");
+    } else if (generateDetectedCredentials.hasAuth) {
+      msg = t("options.generator.credentials.authDetected");
+    } else {
+      msg = t("options.generator.credentials.cookieDetected");
+    }
+    
+    generateCredentialsWarningMsg.textContent = msg;
+    generateSyncAuthCheckbox.parentElement.hidden = !generateDetectedCredentials.hasAuth;
+    generateSyncCookieCheckbox.parentElement.hidden = !generateDetectedCredentials.hasCookie;
+  } else {
+    generateCredentialsWarning.hidden = true;
+  }
+}
+
+function renderGeneratedRulesPreview() {
+  const selected = generateParsedCandidates.filter(c => c.selected);
+  const container = document.querySelector("#generateRulePreviewContainer");
+  const list = document.querySelector("#generateRulePreviewList");
+  
+  if (!container || !list) return;
+  
+  if (selected.length === 0) {
+    container.hidden = true;
+    return;
+  }
+  
+  container.hidden = false;
+  list.innerHTML = "";
+  
+  selected.forEach((c) => {
+    const card = document.createElement("div");
+    card.className = "generate-preview-card";
+    
+    const name = document.createElement("strong");
+    name.className = "generate-preview-card__name";
+    name.textContent = c.name;
+    
+    const group = document.createElement("span");
+    group.className = "generate-preview-card__group";
+    group.textContent = c.group ? t("options.generator.preview.group", { group: c.group }) : t("options.generator.preview.noGroup");
+    group.style.fontSize = "11px";
+    group.style.color = "var(--muted)";
+    group.style.marginBottom = "4px";
+    
+    const meta = document.createElement("div");
+    meta.className = "generate-preview-card__meta";
+    
+    const typeBadge = document.createElement("span");
+    typeBadge.style.background = "var(--panel-soft)";
+    typeBadge.style.padding = "2px 6px";
+    typeBadge.style.borderRadius = "4px";
+    typeBadge.style.marginRight = "6px";
+    typeBadge.style.fontSize = "10px";
+    typeBadge.style.fontWeight = "700";
+    typeBadge.style.color = "var(--accent)";
+    typeBadge.style.border = "1px solid var(--line)";
+    typeBadge.textContent = String(c.patternType || "wildcard").toUpperCase();
+    
+    const pathMapping = document.createElement("code");
+    pathMapping.textContent = `${c.sourcePattern} ➔ ${c.targetUrl}`;
+    pathMapping.style.fontSize = "11px";
+    
+    meta.appendChild(typeBadge);
+    meta.appendChild(pathMapping);
+    
+    card.appendChild(name);
+    card.appendChild(group);
+    card.appendChild(meta);
+    
+    list.appendChild(card);
+  });
+}
+
+function updateFooterStats() {
+  const prodUrl = generateBaseProdUrl.value.trim();
+  const redirectUrl = generateRedirectUrl.value.trim();
+  
+  const hasProdUrl = Boolean(prodUrl);
+  const hasredirectUrl = Boolean(redirectUrl);
+  
+  // Validation for Production URL/Host
+  const prodError = document.querySelector("#prodUrlError");
+  let isProdUrlValid = true;
+  if (!hasProdUrl) {
+    isProdUrlValid = false;
+    if (prodError) {
+      prodError.textContent = t("options.generator.validation.prodRequired");
+      prodError.style.display = "block";
+    }
+  } else {
+    try {
+      const parsed = prodUrl.startsWith("http") ? new URL(prodUrl) : new URL("https://" + prodUrl);
+      if (!parsed.hostname) throw new Error();
+      if (prodError) prodError.style.display = "none";
+    } catch (e) {
+      isProdUrlValid = false;
+      if (prodError) {
+        prodError.textContent = t("options.generator.validation.prodInvalid");
+        prodError.style.display = "block";
+      }
+    }
+  }
+  generateBaseProdUrl.classList.toggle("is-invalid", !isProdUrlValid);
+  
+  // Validation for Local URL
+  const localError = document.querySelector("#redirectUrlError");
+  let isredirectUrlValid = true;
+  if (!hasredirectUrl) {
+    isredirectUrlValid = false;
+    if (localError) {
+      localError.textContent = t("options.generator.validation.localRequired");
+      localError.style.display = "block";
+    }
+  } else {
+    try {
+      new URL(redirectUrl);
+      if (localError) localError.style.display = "none";
+    } catch (e) {
+      isredirectUrlValid = false;
+      if (localError) {
+        localError.textContent = t("options.generator.validation.localInvalid");
+        localError.style.display = "block";
+      }
+    }
+  }
+  generateRedirectUrl.classList.toggle("is-invalid", !isredirectUrlValid);
+  
+  const selectedCount = generateParsedCandidates.filter(c => c.selected).length;
+  const isValid = isProdUrlValid && isredirectUrlValid && selectedCount > 0;
+  
+  if (!isProdUrlValid || !isredirectUrlValid) {
+    generateRuleStatsMsg.innerHTML = `<span style="color: var(--danger); font-weight: 700;">${t("options.generator.stats.fixRequired", { count: selectedCount })}</span>`;
+  } else if (selectedCount === 0) {
+    generateRuleStatsMsg.innerHTML = `<span style="color: var(--warning); font-weight: 700;">${t("options.generator.stats.selectAtLeast")}</span>`;
+  } else {
+    generateRuleStatsMsg.textContent = t("options.generator.stats.selected", { count: selectedCount });
+  }
+  
+  generateSaveDraft.disabled = !isValid;
+  generateSaveEnable.disabled = !isValid;
+}
+
+// Live Redirection Simulators
+function simulateRedirection(testUrl, sourcePattern, targetUrl, patternType) {
+  if (patternType === "regex") {
+    try {
+      const regex = new RegExp(sourcePattern);
+      if (regex.test(testUrl)) {
+        return testUrl.replace(regex, targetUrl);
+      }
+    } catch (e) {
+      return null;
+    }
+  } else {
+    const matcher = buildSourceMatcher(sourcePattern, "wildcard");
+    if (matcher(testUrl)) {
+      const staticParts = sourcePattern.split("*");
+      if (staticParts.length >= 2) {
+        const lastSegment = staticParts[staticParts.length - 2];
+        const cleanSegment = lastSegment.replace(/^[a-zA-Z0-9+.-]+:\/\//, ""); // strip protocol
+        const testUrlClean = testUrl.replace(/^[a-zA-Z0-9+.-]+:\/\//, "");
+        const index = testUrlClean.indexOf(cleanSegment);
+        if (index !== -1) {
+          const suffix = testUrlClean.substring(index + cleanSegment.length);
+          const cleanTarget = targetUrl.replace(/\*$/, "");
+          return cleanTarget + suffix;
+        }
+      }
+      return targetUrl;
+    }
+  }
+  return null;
+}
+
+function updateGeneratePlayground() {
+  const testUrl = generatePlaygroundInput.value.trim();
+  if (!testUrl) {
+    generatePlaygroundStatus.dataset.status = "none";
+    generatePlaygroundStatus.textContent = t("options.generator.playground.status.noInput");
+    generatePlaygroundRedirectResult.textContent = "-";
+    return;
+  }
+  
+  const selectedRules = generateParsedCandidates.filter(c => c.selected);
+  if (selectedRules.length === 0) {
+    generatePlaygroundStatus.dataset.status = "nomatch";
+    generatePlaygroundStatus.textContent = t("options.generator.playground.status.noRules");
+    generatePlaygroundRedirectResult.textContent = "-";
+    return;
+  }
+  
+  // Find first matching rule
+  let matchedRule = null;
+  let redirectedUrl = null;
+  
+  for (const r of selectedRules) {
+    const result = simulateRedirection(testUrl, r.sourcePattern, r.targetUrl, r.patternType);
+    if (result) {
+      matchedRule = r;
+      redirectedUrl = result;
+      break;
+    }
+  }
+  
+  if (matchedRule) {
+    generatePlaygroundStatus.dataset.status = "match";
+    generatePlaygroundStatus.textContent = t("options.generator.playground.status.matched", { name: matchedRule.name });
+    generatePlaygroundRedirectResult.textContent = redirectedUrl;
+  } else {
+    generatePlaygroundStatus.dataset.status = "nomatch";
+    generatePlaygroundStatus.textContent = t("options.generator.playground.status.noMatch");
+    generatePlaygroundRedirectResult.textContent = "-";
+  }
+}
+
+if (generatePlaygroundInput) {
+  generatePlaygroundInput.addEventListener("input", updateGeneratePlayground);
+}
+
+// 4. Save candidates to Altreurl rules state
+async function saveGeneratedRules(enabled = true) {
+  const selectedCandidates = generateParsedCandidates.filter(c => c.selected);
+  if (selectedCandidates.length === 0) return;
+  
+  // Save base Local URL to presets history
+  const redirectUrl = generateRedirectUrl.value.trim();
+  if (redirectUrl) {
+    await addLocalPresetToHistory(redirectUrl);
+  }
+  
+  const now = new Date().toISOString();
+  const newRules = selectedCandidates.map((c) => {
+    const blankRule = createBlankRule();
+    
+    // Auto-configured from Candidate
+    const rule = {
+      ...blankRule,
+      enabled: enabled,
+      name: c.name || blankRule.name,
+      group: c.group || "",
+      patternType: c.patternType === "regex" ? PATTERN_TYPES.regex : PATTERN_TYPES.wildcard,
+      sourcePattern: c.sourcePattern,
+      targetUrl: c.targetUrl,
+      createdAt: now,
+      modifiedAt: now
+    };
+    
+    // Auto configure synced credentials if cURL tab and checkbox is enabled
+    if (generateActiveTab === "curl" && generateDetectedCredentials) {
+      if (generateDetectedCredentials.hasAuth && generateSyncAuthCheckbox.checked) {
+        rule.credentialMode = CREDENTIAL_MODES.sync;
+        rule.syncAuthorization = true;
+        rule.credentialSource = CREDENTIAL_SOURCES.storage;
+        rule.storageArea = STORAGE_AREAS.localStorage;
+        rule.authorizationKey = "token"; // smart guess
+        rule.authorizationPrefix = "Bearer";
+      }
+      
+      if (generateDetectedCredentials.hasCookie && generateSyncCookieCheckbox.checked) {
+        rule.credentialMode = CREDENTIAL_MODES.sync;
+        rule.syncCookies = true;
+        rule.cookieNames = "session,sid"; // smart guess
+      }
+    }
+    
+    return rule;
+  });
+  
+  try {
+    if (enabled) {
+      // Save & Enable: Persist rules immediately, preserve other drafts
+      const persistedRules = await getRedirectRules();
+      const savedRules = [...newRules, ...persistedRules];
+      const appliedRules = await saveRules(savedRules);
+      
+      savedRuleIds = new Set(appliedRules.map((rule) => rule.id));
+      rules = mergePersistedRulesWithDrafts(appliedRules, {
+        committedRuleIds: new Set(newRules.map(r => r.id))
+      });
+    } else {
+      // Save as Draft: Keep rules purely in-memory as drafts
+      rules = [...newRules, ...rules];
+    }
+    
+    // Select the newly generated rules in sidebar
+    selectedRuleIds = new Set(newRules.map((rule) => rule.id));
+    selectedRuleId = newRules[0].id;
+    
+    notify(
+      newRules.length > 1
+        ? t("options.toast.imported", { count: newRules.length, noun: t("common.rules") })
+        : t("options.toast.ruleAdded"),
+      "success"
+    );
+    closeGenerateDialog();
+    render();
+  } catch (err) {
+    notify(t("runtime.error.apply") + ": " + err.message, "error");
+  }
+}
+
+if (generateSaveDraft) {
+  generateSaveDraft.addEventListener("click", () => saveGeneratedRules(false));
+}
+
+if (generateSaveEnable) {
+  generateSaveEnable.addEventListener("click", () => saveGeneratedRules(true));
+}
+
+// Helpers
+function getUrlPathname(urlStr) {
+  try {
+    const u = new URL(urlStr.startsWith("http") ? urlStr : "https://" + urlStr);
+    return u.pathname;
+  } catch(e) {
+    return "/";
+  }
+}
+
+function getUrlHost(urlStr) {
+  try {
+    const u = new URL(urlStr.startsWith("http") ? urlStr : "https://" + urlStr);
+    return u.host;
+  } catch(e) {
+    return "api.production.com";
+  }
+}
+
 function setupHelpModal() {
   const modal = document.getElementById("helpModal");
   const modalClose = document.getElementById("helpModalClose");
@@ -2279,3 +3326,66 @@ function setupHelpModal() {
 
 setupHelpModal();
 render();
+
+// Helper for Local URL Presets History
+async function initializeLocalPresetsHistory() {
+  if (!generateRedirectHistories) return;
+  
+  try {
+    const result = await chrome.storage.local.get({ localPresetsHistory: [] });
+    const history = Array.isArray(result.localPresetsHistory) ? result.localPresetsHistory : [];
+    
+    generateRedirectHistories.innerHTML = "";
+    
+    if (history.length === 0) {
+      generateRedirectHistories.style.display = "none";
+      return;
+    }
+    
+    generateRedirectHistories.style.display = "";
+    
+    // Add placeholder first
+    const placeholderOpt = document.createElement("option");
+    placeholderOpt.value = "";
+    placeholderOpt.textContent = "History...";
+    placeholderOpt.disabled = true;
+    placeholderOpt.selected = true;
+    generateRedirectHistories.appendChild(placeholderOpt);
+    
+    history.forEach((url) => {
+      const opt = document.createElement("option");
+      opt.value = url;
+      opt.textContent = url.replace(/^https?:\/\//, "");
+      generateRedirectHistories.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Failed to load local presets history:", err);
+  }
+}
+
+async function addLocalPresetToHistory(url) {
+  if (!url || typeof url !== "string") return;
+  const cleanUrl = url.trim().replace(/\/$/, ""); // Trim and clean trailing slash
+  if (!cleanUrl) return;
+  
+  try {
+    const result = await chrome.storage.local.get({ localPresetsHistory: [] });
+    let history = Array.isArray(result.localPresetsHistory) ? result.localPresetsHistory : [];
+    
+    // Remove if already in history to move to top
+    history = history.filter(item => item !== cleanUrl);
+    
+    // Add to very top
+    history.unshift(cleanUrl);
+    
+    // Keep max 5 history items
+    history = history.slice(0, 5);
+    
+    await chrome.storage.local.set({ localPresetsHistory: history });
+    
+    // Re-initialize dropdown UI
+    await initializeLocalPresetsHistory();
+  } catch (err) {
+    console.error("Failed to add local preset to history:", err);
+  }
+}

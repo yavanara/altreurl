@@ -40,6 +40,10 @@
             <img data-icon="icons8-log-32.png" src="../shared/imgs/icons/b/icons8-log-32.png" alt="" width="16" height="16">
             <span data-i18n="options.actions.diagnostics"></span>
           </button>
+          <button id="generateRule" class="icon-button" type="button" data-i18n-title="options.actions.generateRule.title">
+            <img data-icon="icons8-synchronize-32.png" src="../shared/imgs/icons/b/icons8-synchronize-32.png" alt="" width="16" height="16">
+            <span data-i18n="options.actions.generateRule"></span>
+          </button>
           <button id="addRule" class="icon-button" type="button" data-i18n-title="options.actions.createDraft.title">
             <img data-icon="icons8-add-32.png" src="../shared/imgs/icons/b/icons8-add-32.png" alt="" width="16" height="16">
             <span data-i18n="options.actions.addRule"></span>
@@ -89,6 +93,201 @@
               <img data-icon="icons8-import-32.png" src="../shared/imgs/icons/b/icons8-import-32.png" alt="" width="16" height="16">
               <span data-i18n="options.import.apply"></span>
             </button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog id="generateRuleDialog" class="import-dialog generate-dialog" aria-labelledby="generateDialogTitle">
+        <form method="dialog" class="import-dialog__panel generate-dialog__panel">
+          <header class="import-dialog__header">
+            <div>
+              <h2 id="generateDialogTitle" data-i18n="options.generator.title"></h2>
+              <p data-i18n="options.generator.detail"></p>
+            </div>
+            <button id="generateCancelTop" class="icon-button" type="button" data-i18n-title="options.generator.close.title">
+              <img data-icon="icons8-close-32.png" src="../shared/imgs/icons/b/icons8-close-32.png" alt="" width="16" height="16">
+              <span data-i18n="options.generator.close"></span>
+            </button>
+          </header>
+
+          <div class="generate-tabs">
+            <button class="generate-tab-btn is-active" type="button" data-tab="curl" data-i18n="options.generator.tab.curl"></button>
+            <button class="generate-tab-btn" type="button" data-tab="url" data-i18n="options.generator.tab.url"></button>
+            <button class="generate-tab-btn" type="button" data-tab="tabs" data-i18n="options.generator.tab.tabs"></button>
+            <button class="generate-tab-btn" type="button" data-tab="swagger" data-i18n="options.generator.tab.swagger"></button>
+          </div>
+
+          <div class="generate-tab-contents">
+            <!-- cURL Tab -->
+            <div class="generate-tab-content is-active" data-tab-content="curl">
+              <div class="generate-field">
+                <label for="generateCurlInput" data-i18n="options.generator.curl.label"></label>
+                <textarea id="generateCurlInput" class="code-textarea" placeholder="curl 'https://api.example.com/v1/users' -H 'Authorization: Bearer <token>'"></textarea>
+              </div>
+            </div>
+
+            <!-- URL Tab -->
+            <div class="generate-tab-content" data-tab-content="url">
+              <div class="generate-field">
+                <label for="generateUrlInput" data-i18n="options.generator.url.label"></label>
+                <input id="generateUrlInput" type="text" placeholder="https://api.example.com/v1/users/123/profile" class="wide-input">
+              </div>
+              <div id="generateUrlPatterns" class="pattern-suggestions-list" hidden>
+                <span class="section-subtitle" data-i18n="options.generator.patterns.subtitle"></span>
+                <div id="generateUrlPatternsList" class="suggestions-grid"></div>
+              </div>
+            </div>
+
+            <!-- Active Tabs Tab -->
+            <div class="generate-tab-content" data-tab-content="tabs">
+              <p class="section-description" data-i18n="options.generator.tabs.description"></p>
+              <div id="generateTabsList" class="chrome-tabs-list">
+                <!-- Open tabs list populated via JS -->
+              </div>
+            </div>
+
+            <!-- Swagger Tab -->
+            <div class="generate-tab-content" data-tab-content="swagger">
+              <div class="swagger-input-group">
+                <div class="generate-field half-width">
+                  <label for="generateSwaggerFile" data-i18n="options.generator.swagger.file"></label>
+                  <input id="generateSwaggerFile" type="file" accept=".json,application/json">
+                </div>
+                <div class="generate-field half-width">
+                  <label for="generateSwaggerUrl" data-i18n="options.generator.swagger.url"></label>
+                  <div class="input-with-button">
+                    <input id="generateSwaggerUrl" type="url" placeholder="https://api.example.com/swagger/v1/swagger.json">
+                    <button id="btnLoadSwaggerUrl" class="icon-button" type="button" data-i18n="options.generator.swagger.load"></button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Swagger endpoint selector (hidden until parsed) -->
+              <div id="swaggerEndpointsContainer" class="swagger-endpoints-container" hidden>
+                <div class="swagger-filter-bar">
+                  <input id="swaggerEndpointSearch" type="search" placeholder="Search paths..." class="swagger-search-input" data-i18n-placeholder="options.generator.swagger.searchPlaceholder">
+                  <button id="swaggerSelectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.selectAll"></button>
+                  <button id="swaggerDeselectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.deselectAll"></button>
+                </div>
+                <div class="swagger-table-wrapper">
+                  <table class="swagger-endpoints-table">
+                    <colgroup>
+                      <col style="width: 45px;">
+                      <col style="width: 85px;">
+                      <col style="width: 360px;">
+                      <col style="width: 380px;">
+                      <col style="width: 150px;">
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th><input id="swaggerHeaderSelectAll" type="checkbox"></th>
+                        <th data-i18n="common.method"></th>
+                        <th data-i18n="common.path"></th>
+                        <th data-i18n="options.generator.swagger.editRule"></th>
+                        <th data-i18n="options.generator.swagger.style"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="swaggerEndpointsBody">
+                      <!-- Parsed endpoints list -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Global / Bulk Customization (Shown for cURL, Single URL, and Swagger) -->
+          <div id="generateGlobalConfig" class="generate-global-config">
+            <span class="section-subtitle" data-i18n="options.generator.globalConfig.title"></span>
+            <div class="global-config-grid">
+              <label style="position: relative;">
+                <span><span data-i18n="options.generator.prodUrl"></span> <span style="color: var(--danger);">*</span></span>
+                <input id="generateBaseProdUrl" type="text" placeholder="https://api.example.com">
+                <span class="validation-error-msg" id="prodUrlError"></span>
+              </label>
+              <label style="position: relative;">
+                <span><span data-i18n="options.generator.redirectUrl"></span> <span style="color: var(--danger);">*</span></span>
+                <div class="input-with-select">
+                  <input id="generateRedirectUrl" type="text" placeholder="http://localhost:5000">
+                  <select id="generateRedirectHistories" style="display: none;"></select>
+                </div>
+                <span class="validation-error-msg" id="redirectUrlError"></span>
+              </label>
+              <label>
+                <span data-i18n="options.generator.globalGroup"></span>
+                <input id="generateGlobalGroup" type="text" placeholder="api_gateway">
+              </label>
+              <label id="generatePatternStyleContainer" hidden>
+                <span data-i18n="options.generator.patternStyle"></span>
+                <select id="generatePatternStyle">
+                  <option value="specific" selected data-i18n="options.generator.ruleMode.specific"></option>
+                  <option value="simple" data-i18n="options.generator.ruleMode.simple"></option>
+                </select>
+              </label>
+            </div>
+            
+            <!-- Credentials notification area -->
+            <div id="generateCredentialsWarning" class="generate-credentials-warning" hidden>
+              <img data-icon="icons8-cookie-32.png" src="../shared/imgs/icons/b/icons8-cookie-32.png" alt="" width="16" height="16">
+              <div class="warning-text-container">
+                <strong data-i18n="options.generator.credentials.detected"></strong>
+                <p id="generateCredentialsWarningMsg"></p>
+                <div class="credentials-options">
+                  <label>
+                    <input id="generateSyncAuthCheckbox" type="checkbox">
+                    <span data-i18n="options.generator.syncAuth"></span>
+                  </label>
+                  <label>
+                    <input id="generateSyncCookieCheckbox" type="checkbox">
+                    <span data-i18n="options.generator.syncCookies"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generated Rule Preview (Preview Rules to be Formed) -->
+          <div id="generateRulePreviewContainer" class="generate-rule-preview-container" hidden>
+            <span class="section-subtitle" data-i18n="options.generator.preview.title"></span>
+            <div id="generateRulePreviewList" class="generate-rule-preview-list"></div>
+          </div>
+
+          <!-- Realtime Live Matcher Playground -->
+          <div class="generate-playground">
+            <span class="section-subtitle" data-i18n="options.generator.playground.title"></span>
+            <div class="playground-grid">
+              <label class="full-width">
+                <span data-i18n="options.generator.playground.testUrl"></span>
+                <input id="generatePlaygroundInput" type="text" placeholder="https://api.example.com/v1/users/get/123-uuid">
+              </label>
+              <div class="playground-results">
+                <div class="playground-status-badge" id="generatePlaygroundStatus" data-status="none"></div>
+                <div class="playground-redirect-container">
+                  <span data-i18n="options.generator.playground.redirectedTo"></span>
+                  <code id="generatePlaygroundRedirectResult"></code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <footer class="import-dialog__actions generate-footer-actions">
+            <div class="generate-footer-stats">
+              <span id="generateRuleStatsMsg"></span>
+            </div>
+            <div class="generate-footer-buttons">
+              <button id="generateCancel" class="icon-button" type="button">
+                <img data-icon="icons8-close-32.png" src="../shared/imgs/icons/b/icons8-close-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.generator.cancel"></span>
+              </button>
+              <button id="generateSaveDraft" class="icon-button" type="button">
+                <img data-icon="icons8-book-32.png" src="../shared/imgs/icons/b/icons8-book-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.generator.saveDraft"></span>
+              </button>
+              <button id="generateSaveEnable" class="icon-button" type="button">
+                <img data-icon="icons8-checkbox-checked-32.png" src="../shared/imgs/icons/b/icons8-checkbox-checked-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.generator.saveEnable"></span>
+              </button>
+            </div>
           </footer>
         </form>
       </dialog>
