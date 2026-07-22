@@ -18,25 +18,48 @@ export function parseCurlCommand(curlString) {
     return null;
   }
 
-  // Clean line continuations (newlines escaped with backslashes)
-  const cleaned = curlString.replace(/\\\r?\n/g, " ").trim();
+  // Clean multi-line continuations for Bash (\), Windows CMD (^), and PowerShell (`)
+  let cleaned = curlString
+    .replace(/\\\r?\n/g, " ")
+    .replace(/\^\r?\n/g, " ")
+    .replace(/`\r?\n/g, " ")
+    .trim();
 
-  // Simple tokenizer that handles single, double, and unquoted arguments
-  const args = [];
+  // Normalize ANSI-C quoting (e.g., $'header: value\n' -> 'header: value\n')
+  cleaned = cleaned.replace(/\$'([^']*)'/g, (_match, content) => {
+    const unescaped = content
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\r/g, "\r")
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"');
+    return `'${unescaped}'`;
+  });
+
+  // Tokenizer that handles single, double, escaped quotes, and space separators
+  const rawTokens = [];
   let current = "";
   let inDoubleQuote = false;
   let inSingleQuote = false;
 
   for (let i = 0; i < cleaned.length; i++) {
     const char = cleaned[i];
+    
+    let backslashCount = 0;
+    let lookBack = i - 1;
+    while (lookBack >= 0 && cleaned[lookBack] === "\\") {
+      backslashCount += 1;
+      lookBack -= 1;
+    }
+    const isEscaped = backslashCount % 2 === 1;
 
-    if (char === '"' && !inSingleQuote) {
+    if (char === '"' && !inSingleQuote && !isEscaped) {
       inDoubleQuote = !inDoubleQuote;
-    } else if (char === "'" && !inDoubleQuote) {
+    } else if (char === "'" && !inDoubleQuote && !isEscaped) {
       inSingleQuote = !inSingleQuote;
     } else if (char === " " && !inDoubleQuote && !inSingleQuote) {
       if (current.trim()) {
-        args.push(current.trim());
+        rawTokens.push(current.trim());
         current = "";
       }
     } else {
@@ -44,7 +67,36 @@ export function parseCurlCommand(curlString) {
     }
   }
   if (current.trim()) {
-    args.push(current.trim());
+    rawTokens.push(current.trim());
+  }
+
+  // Unquote helper
+  const unquote = (val) => {
+    if (!val || typeof val !== "string") return "";
+    let str = val.trim();
+    if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+      str = str.slice(1, -1);
+    }
+    return str.replace(/\\"/g, '"').replace(/\\'/g, "'");
+  };
+
+  // Process tokens into argument pairs
+  const args = [];
+  for (let i = 0; i < rawTokens.length; i++) {
+    const token = rawTokens[i];
+    // Check for equals-joined flags like --header="X: Y" or --request=POST or --url="https://..."
+    if (token.startsWith("--header=") || token.startsWith("-H=")) {
+      const eqIdx = token.indexOf("=");
+      args.push("-H", unquote(token.substring(eqIdx + 1)));
+    } else if (token.startsWith("--request=") || token.startsWith("-X=")) {
+      const eqIdx = token.indexOf("=");
+      args.push("-X", unquote(token.substring(eqIdx + 1)));
+    } else if (token.startsWith("--url=")) {
+      const eqIdx = token.indexOf("=");
+      args.push(unquote(token.substring(eqIdx + 1)));
+    } else {
+      args.push(unquote(token));
+    }
   }
 
   let url = "";
@@ -62,7 +114,9 @@ export function parseCurlCommand(curlString) {
         if (colonIndex !== -1) {
           const name = headerVal.substring(0, colonIndex).trim();
           const value = headerVal.substring(colonIndex + 1).trim();
-          headers.push({ name, value });
+          if (name) {
+            headers.push({ name, value });
+          }
         }
         i++; // skip next arg
       }
@@ -82,10 +136,8 @@ export function parseCurlCommand(curlString) {
       hasDataPayload = true;
       i++; // skip payload arg
     } else if (arg.startsWith("http://") || arg.startsWith("https://")) {
-      url = arg;
-    } else if (!arg.startsWith("-") && !url) {
-      // Sometimes URL is just written without quotes or protocol in front, but let's be strict
-      // or try to guess if it looks like a URL/domain
+      if (!url) url = arg;
+    } else if (!arg.startsWith("-") && !url && arg.toLowerCase() !== "curl") {
       if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(arg)) {
         url = arg.startsWith("http") ? arg : "https://" + arg;
       }
@@ -98,10 +150,9 @@ export function parseCurlCommand(curlString) {
   }
 
   if (!url) {
-    // Last ditch: look for any argument that has http:// or https:// even inside quotes that might not have tokenized perfectly
     const urlMatch = cleaned.match(/https?:\/\/[^\s'"]+/);
     if (urlMatch) {
-      url = urlMatch[0];
+      url = unquote(urlMatch[0]);
     }
   }
 
@@ -214,6 +265,30 @@ export function detectCredentials(headers = []) {
 }
 
 /**
+ * Extracts clean relative subpath segments for rule naming.
+ * @param {string} pathKey e.g. "/api/v1/users/history/activity"
+ * @param {string} tag e.g. "history"
+ * @returns {string} Relative path segment, e.g. "activity"
+ */
+function getRelativePath(pathKey, tag) {
+  if (!pathKey) return "";
+  const segs = pathKey.split("/").filter(Boolean);
+  if (segs.length === 0) return "";
+  
+  if (tag) {
+    const tagLower = String(tag).toLowerCase().trim();
+    const tagIdx = segs.findIndex(s => {
+      const sl = s.toLowerCase();
+      return sl === tagLower || sl === tagLower + "s" || sl + "s" === tagLower;
+    });
+    if (tagIdx !== -1 && tagIdx < segs.length - 1) {
+      return segs.slice(tagIdx + 1).join("/");
+    }
+  }
+  return segs[segs.length - 1];
+}
+
+/**
  * Parses a Swagger / OpenAPI specification object and generates rule candidates.
  * @param {object} spec Swagger spec object
  * @param {string} baseProdUrl Base production URL, e.g. "https://api.production.com"
@@ -251,11 +326,14 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
 
   // Host name without protocol for wildcard formatting
   const prodHost = prodClean.replace(/^https?:\/\//, "");
+  const prodProtoMatch = prodClean.match(/^(https?):\/\//i);
+  const prodProto = prodProtoMatch ? prodProtoMatch[1].toLowerCase() + "://" : "https://";
 
   if (patternStyle === "simple") {
     if (baseOn === "tags") {
       const tagGroups = {};
       Object.entries(paths).forEach(([pathKey, pathObj]) => {
+        if (!pathKey || pathKey === "__proto__" || pathKey === "constructor" || pathKey === "prototype" || !pathObj || typeof pathObj !== "object") return;
         const methods = Object.keys(pathObj);
         for (const mKey of methods) {
           const method = mKey.toUpperCase();
@@ -271,7 +349,7 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
 
       Object.entries(tagGroups).forEach(([tag, tagPaths]) => {
         const fullGroupName = `${parentGroup} / ${tag}`;
-        const ruleName = tag;
+        const ruleName = `[ALL: Tags] ${parentGroup}/${tag}`;
 
         const strippedPaths = tagPaths.map(p => p.split('{')[0]);
         let prefix = strippedPaths[0];
@@ -287,8 +365,8 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
           prefix = prefix.substring(0, lastSlash + 1);
         }
 
-        const sourcePattern = `*://${prodHost}${prefix}*`;
-        const targetUrl = `${localClean}${prefix}`;
+        const sourcePattern = `${prodProto}${prodHost}${prefix}*`;
+        const targetUrl = `${localClean}${prefix}*`;
 
         candidates.push({
           name: ruleName,
@@ -303,11 +381,48 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
           selected: true
         });
       });
+    } else if (baseOn === "title") {
+      const allPaths = Object.keys(paths);
+      if (allPaths.length > 0) {
+        const fullGroupName = parentGroup;
+        const ruleName = `[ALL: Title] ${parentGroup}`;
+
+        const strippedPaths = allPaths.map(p => p.split('{')[0]);
+        let prefix = strippedPaths[0];
+        for (let i = 1; i < strippedPaths.length; i++) {
+          while (strippedPaths[i].indexOf(prefix) !== 0) {
+            prefix = prefix.substring(0, prefix.length - 1);
+            if (prefix === "") break;
+          }
+        }
+        
+        const lastSlash = prefix.lastIndexOf('/');
+        if (lastSlash > -1) {
+          prefix = prefix.substring(0, lastSlash + 1);
+        }
+
+        const sourcePattern = `${prodProto}${prodHost}${prefix}*`;
+        const targetUrl = `${localClean}${prefix}*`;
+
+        candidates.push({
+          name: ruleName,
+          group: fullGroupName,
+          patternType: "wildcard",
+          sourcePattern,
+          targetUrl,
+          swaggerPath: prefix || parentGroup,
+          method: "ALL",
+          sourceAuth: false,
+          sourceCookies: false,
+          selected: true
+        });
+      }
     } else {
       // -------------------------------------------------------------------------
       // SIMPLE MODE: Generate exactly ONE wildcard rule candidate per unique path
       // -------------------------------------------------------------------------
       Object.entries(paths).forEach(([pathKey, pathObj]) => {
+        if (!pathKey || pathKey === "__proto__" || pathKey === "constructor" || pathKey === "prototype" || !pathObj || typeof pathObj !== "object") return;
       // Find subgroup tag from operations on this path
       let subgroup = "General";
       const methods = Object.keys(pathObj);
@@ -324,7 +439,10 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
       }
 
       const fullGroupName = `${parentGroup} / ${subgroup}`;
-      const ruleName = pathKey;
+      const relPath = getRelativePath(pathKey, subgroup);
+      const ruleName = relPath && relPath !== subgroup
+        ? `[ALL: Path] ${parentGroup}/${subgroup}/${relPath}`
+        : `[ALL: Path] ${parentGroup}/${subgroup}`;
 
       // Make a clean wildcard pattern: strip dynamic parameters if any or just add *
       const paramMatches = pathKey.match(/\{[^}]+\}/g) || [];
@@ -336,11 +454,11 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
       if (hasParams) {
         const firstParamIndex = pathKey.indexOf("{");
         const staticPart = pathKey.substring(0, firstParamIndex);
-        sourcePattern = `*://${prodHost}${staticPart}*`;
-        targetUrl = `${localClean}${staticPart}`;
+        sourcePattern = `${prodProto}${prodHost}${staticPart}*`;
+        targetUrl = `${localClean}${staticPart}*`;
       } else {
-        sourcePattern = `*://${prodHost}${pathKey}*`;
-        targetUrl = `${localClean}${pathKey}`;
+        sourcePattern = `${prodProto}${prodHost}${pathKey}*`;
+        targetUrl = `${localClean}${pathKey}*`;
       }
 
       candidates.push({
@@ -360,6 +478,7 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
     // SPESIFIK MODE: Original behavior, one candidate for every single endpoint
     // -------------------------------------------------------------------------
     Object.entries(paths).forEach(([pathKey, pathObj]) => {
+      if (!pathKey || pathKey === "__proto__" || pathKey === "constructor" || pathKey === "prototype" || !pathObj || typeof pathObj !== "object") return;
       // Loop through HTTP methods (get, post, put, delete, patch, etc.)
       Object.entries(pathObj).forEach(([methodKey, operationObj]) => {
         const method = methodKey.toUpperCase();
@@ -373,10 +492,10 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
         const fullGroupName = `${parentGroup} / ${subgroup}`;
 
         // 2. Generate Rule Name
-        const summary = operationObj.summary || operationObj.description || "";
-        const ruleName = summary
-          ? `[${method}] ${summary}`
-          : `[${method}] ${pathKey}`;
+        const relPath = getRelativePath(pathKey, subgroup);
+        const ruleName = relPath && relPath !== subgroup
+          ? `[${method}] ${parentGroup}/${subgroup}/${relPath}`
+          : `[${method}] ${parentGroup}/${subgroup}`;
 
         // 3. Process Path & Parameter Substitutions
         // Swagger parameters are defined in format: /path/to/{paramName}
@@ -402,17 +521,17 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
           const escapedProdHost = escapeRegex(prodHost);
           sourcePattern = `^https?:\\/\\/${escapedProdHost}${regexPath}(?:\\?.*)?$`;
 
-          // Generate targetUrl with $1, $2 replacements
+          // Generate targetUrl with \1, \2 replacements
           let targetPath = pathKey;
           paramMatches.forEach((param, index) => {
-            targetPath = targetPath.replace(param, `$${index + 1}`);
+            targetPath = targetPath.replace(param, `\\${index + 1}`);
           });
           targetUrl = `${localClean}${targetPath}`;
         } else {
           // No parameters, use a wildcard path matching
           patternType = "wildcard";
-          sourcePattern = `*://${prodHost}${pathKey}*`;
-          targetUrl = `${localClean}${pathKey}`;
+          sourcePattern = `${prodProto}${prodHost}${pathKey}*`;
+          targetUrl = `${localClean}${pathKey}*`;
         }
 
         // Push Candidate
@@ -432,3 +551,4 @@ export function parseSwaggerSpec(spec, baseProdUrl, baseredirectUrl, patternStyl
 
   return candidates;
 }
+

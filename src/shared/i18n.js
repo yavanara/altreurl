@@ -49,10 +49,27 @@ async function loadMessages(locale) {
     return response.json();
   }
 
-  const { readFile } = await import("node:fs/promises");
-  const fileUrl = new URL(`./locales/${locale}.json`, import.meta.url);
+  if (typeof window !== "undefined") {
+    try {
+      const response = await fetch(new URL(`./locales/${locale}.json`, import.meta.url));
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch {
+      // Fallback
+    }
+    return {};
+  }
 
-  return JSON.parse(await readFile(fileUrl, "utf8"));
+  try {
+    const nodeFsSpecifier = "node:" + "fs/promises";
+    const { readFile } = await import(nodeFsSpecifier);
+    const fileUrl = new URL(`./locales/${locale}.json`, import.meta.url);
+
+    return JSON.parse(await readFile(fileUrl, "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 function translateText(root, selector, propertyName) {

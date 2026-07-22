@@ -65,18 +65,20 @@ export async function initThemeControl(themeControl, options = {}) {
     }
   });
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !changes[STORAGE_KEYS.theme]) {
-      return;
-    }
+  if (typeof chrome !== "undefined" && chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local" || !changes[STORAGE_KEYS.theme]) {
+        return;
+      }
 
-    const nextThemePreference = changes[STORAGE_KEYS.theme].newValue || "system";
-    applyTheme(nextThemePreference);
+      const nextThemePreference = changes[STORAGE_KEYS.theme].newValue || "system";
+      applyTheme(nextThemePreference);
 
-    if (themeControl && controlType === "toggle") {
-      updateToggleControl(themeControl, nextThemePreference);
-    } else if (themeControl) {
-      themeControl.value = nextThemePreference;
-    }
-  });
+      if (themeControl && controlType === "toggle") {
+        updateToggleControl(themeControl, nextThemePreference);
+      } else if (themeControl) {
+        themeControl.value = nextThemePreference;
+      }
+    });
+  }
 }

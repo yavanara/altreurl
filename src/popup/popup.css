@@ -194,3 +194,9 @@ input:checked + .slider:before {
   transform: translateX(16px);
   background-color: var(--success);
 }
+
+.popup-rules[data-bypassed="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+

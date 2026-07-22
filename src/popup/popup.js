@@ -1,5 +1,15 @@
 import { buildDynamicRules, escapeRegex, getRuleSetIssuesByRuleId, normalizePatternType, PATTERN_TYPES } from "../shared/rules.js";
-import { appendDiagnosticLog, getRedirectRules, STORAGE_KEYS, getSuccessNotificationsEnabled, saveSuccessNotificationsEnabled } from "../shared/storage.js";
+import {
+  appendDiagnosticLog,
+  getRedirectRules,
+  STORAGE_KEYS,
+  getSuccessNotificationsEnabled,
+  saveSuccessNotificationsEnabled,
+  getGlobalBypass,
+  saveGlobalBypass,
+  getDomainBypassList,
+  saveDomainBypassList
+} from "../shared/storage.js";
 import { applyFavicons } from "../shared/favicon.js";
 import { getThemedIconPath } from "../shared/icon.js";
 import { initThemeControl } from "../shared/theme.js";
@@ -12,11 +22,46 @@ const ruleSearch = document.querySelector("#ruleSearch");
 const openOptions = document.querySelector("#openOptions");
 const notifications = document.querySelector("#notifications");
 const toggleNotifications = document.querySelector("#toggleNotifications");
+const toggleGlobalBypass = document.querySelector("#toggleGlobalBypass");
+const toggleDomainBypass = document.querySelector("#toggleDomainBypass");
+const domainBypassRow = document.querySelector("#domainBypassRow");
+const domainBypassLabel = document.querySelector("#domainBypassLabel");
 const notify = createNotifier(notifications, { scope: "popup" });
 
 await initI18n();
-let rules = await getRedirectRules();
-let activeTabContext = await getActiveTabContext();
+
+let rules = [];
+let activeTabContext = { isSupported: false, hostLabel: "", host: "", hostname: "", origin: "", url: "" };
+let globalBypass = false;
+let domainBypassList = [];
+
+async function initPopupState() {
+  try {
+    rules = await getRedirectRules();
+  } catch (_error) {
+    // Use empty array fallback
+  }
+
+  try {
+    activeTabContext = await getActiveTabContext();
+  } catch (_error) {
+    activeTabContext = { isSupported: false, hostLabel: t("common.thisPage"), host: "", hostname: "", origin: "", url: "" };
+  }
+
+  try {
+    globalBypass = await getGlobalBypass();
+  } catch (_error) {
+    // Use false fallback
+  }
+
+  try {
+    domainBypassList = await getDomainBypassList();
+  } catch (_error) {
+    domainBypassList = [];
+  }
+}
+
+await initPopupState();
 
 applyTranslations();
 applyFavicons();
@@ -30,7 +75,40 @@ if (toggleNotifications) {
   });
 }
 
+// Initialize bypass controls
+if (toggleGlobalBypass) {
+  toggleGlobalBypass.checked = globalBypass;
+  toggleGlobalBypass.addEventListener("change", async () => {
+    globalBypass = toggleGlobalBypass.checked;
+    await saveGlobalBypass(globalBypass);
+    renderPopup();
+  });
+}
+
+if (activeTabContext.isSupported && domainBypassRow && toggleDomainBypass && domainBypassLabel) {
+  domainBypassRow.hidden = false;
+  domainBypassLabel.textContent = t("popup.settings.domainBypass", { domain: activeTabContext.hostname });
+  toggleDomainBypass.checked = domainBypassList.map(d => d.toLowerCase()).includes(activeTabContext.hostname.toLowerCase());
+  
+  toggleDomainBypass.addEventListener("change", async () => {
+    const isBypassed = toggleDomainBypass.checked;
+    const host = activeTabContext.hostname.toLowerCase();
+    let nextList = domainBypassList.filter(d => d.toLowerCase() !== host);
+    if (isBypassed) {
+      nextList.push(host);
+    }
+    domainBypassList = nextList;
+    await saveDomainBypassList(domainBypassList);
+    renderPopup();
+  });
+}
+
+
 function renderPopup() {
+  const isDomainBypassed = activeTabContext.isSupported && domainBypassList.map(d => d.toLowerCase()).includes(activeTabContext.hostname.toLowerCase());
+  const isBypassed = globalBypass || isDomainBypassed;
+  activeRules.dataset.bypassed = String(isBypassed);
+
   const attentionIds = getRuleAttentionIds(rules);
   const applicableRules = activeTabContext.isSupported
     ? rules.filter((rule) => isRuleApplicableToTab(rule, activeTabContext))
@@ -45,18 +123,24 @@ function renderPopup() {
     rule.targetUrl
   ].some((value) => String(value || "").toLowerCase().includes(query)));
 
-  const activeSummary = !activeTabContext.isSupported
-    ? t("popup.unsupportedPage")
-    : applicableRules.length === 0
-      ? t("popup.noRulesFor", { host: activeTabContext.hostLabel })
-      : t("popup.enabledForHost", {
-          enabled: enabledRuleCount,
-          total: applicableRules.length,
-          host: activeTabContext.hostLabel
-        });
-  summary.textContent = blockedRuleCount > 0
-    ? t("popup.needsAttentionSuffix", { summary: activeSummary, count: blockedRuleCount })
-    : activeSummary;
+  if (globalBypass) {
+    summary.textContent = t("popup.summary.bypassedAll");
+  } else if (isDomainBypassed) {
+    summary.textContent = t("popup.summary.bypassedDomain");
+  } else {
+    const activeSummary = !activeTabContext.isSupported
+      ? t("popup.unsupportedPage")
+      : applicableRules.length === 0
+        ? t("popup.noRulesFor", { host: activeTabContext.hostLabel })
+        : t("popup.enabledForHost", {
+            enabled: enabledRuleCount,
+            total: applicableRules.length,
+            host: activeTabContext.hostLabel
+          });
+    summary.textContent = blockedRuleCount > 0
+      ? t("popup.needsAttentionSuffix", { summary: activeSummary, count: blockedRuleCount })
+      : activeSummary;
+  }
 
   if (visibleRules.length === 0) {
     activeRules.replaceChildren(renderEmptyState({
@@ -96,6 +180,7 @@ function renderPopup() {
     toggleIcon.width = 16;
     toggleIcon.height = 16;
     toggleButton.append(toggleIcon);
+    toggleButton.disabled = isBypassed;
     toggleButton.addEventListener("click", async () => {
       const previousRules = rules;
 
@@ -127,6 +212,7 @@ function renderPopup() {
         notify(error.message, "error");
       }
     });
+
 
     detail.append(name);
     item.append(detail, toggleButton);
@@ -293,7 +379,10 @@ async function saveRules(configRules) {
       rules: rulesToSave
     });
   } catch (error) {
-    throw new Error(error.message || t("runtime.error.apply"));
+    if (chrome.runtime.lastError?.message) {
+      throw new Error(chrome.runtime.lastError.message);
+    }
+    throw new Error(error?.message || t("runtime.error.apply"));
   }
 
   if (!response?.ok) {
@@ -348,14 +437,41 @@ openOptions.addEventListener("click", () => {
 ruleSearch.addEventListener("input", renderPopup);
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[STORAGE_KEYS.rules]) {
+  if (areaName !== "local") {
     return;
   }
 
-  rules = Array.isArray(changes[STORAGE_KEYS.rules].newValue)
-    ? changes[STORAGE_KEYS.rules].newValue
-    : [];
-  renderPopup();
+  let shouldRender = false;
+
+  if (changes[STORAGE_KEYS.rules]) {
+    rules = Array.isArray(changes[STORAGE_KEYS.rules].newValue)
+      ? changes[STORAGE_KEYS.rules].newValue
+      : [];
+    shouldRender = true;
+  }
+
+  if (changes[STORAGE_KEYS.globalBypass]) {
+    globalBypass = Boolean(changes[STORAGE_KEYS.globalBypass].newValue);
+    if (toggleGlobalBypass) {
+      toggleGlobalBypass.checked = globalBypass;
+    }
+    shouldRender = true;
+  }
+
+  if (changes[STORAGE_KEYS.domainBypassList]) {
+    domainBypassList = Array.isArray(changes[STORAGE_KEYS.domainBypassList].newValue)
+      ? changes[STORAGE_KEYS.domainBypassList].newValue
+      : [];
+    if (toggleDomainBypass && activeTabContext.isSupported) {
+      toggleDomainBypass.checked = domainBypassList.map(d => d.toLowerCase()).includes(activeTabContext.hostname.toLowerCase());
+    }
+    shouldRender = true;
+  }
+
+  if (shouldRender) {
+    renderPopup();
+  }
 });
 
 renderPopup();
+

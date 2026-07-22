@@ -1,9 +1,13 @@
 build/
 dist/
 node_modules/
+test/
+*.test
 *.zip
 *.crx
 *.pem
 *.log
 .env
 .env.*
+.agents/
+docs/

@@ -117,136 +117,258 @@
             <button class="generate-tab-btn" type="button" data-tab="swagger" data-i18n="options.generator.tab.swagger"></button>
           </div>
 
-          <div class="generate-tab-contents">
-            <!-- cURL Tab -->
-            <div class="generate-tab-content is-active" data-tab-content="curl">
-              <div class="generate-field">
-                <label for="generateCurlInput" data-i18n="options.generator.curl.label"></label>
-                <textarea id="generateCurlInput" class="code-textarea" placeholder="curl 'https://api.example.com/v1/users' -H 'Authorization: Bearer <token>'"></textarea>
-              </div>
-            </div>
-
-            <!-- URL Tab -->
-            <div class="generate-tab-content" data-tab-content="url">
-              <div class="generate-field">
-                <label for="generateUrlInput" data-i18n="options.generator.url.label"></label>
-                <input id="generateUrlInput" type="text" placeholder="https://api.example.com/v1/users/123/profile" class="wide-input">
-              </div>
-              <div id="generateUrlPatterns" class="pattern-suggestions-list" hidden>
-                <span class="section-subtitle" data-i18n="options.generator.patterns.subtitle"></span>
-                <div id="generateUrlPatternsList" class="suggestions-grid"></div>
-              </div>
-            </div>
-
-            <!-- Active Tabs Tab -->
-            <div class="generate-tab-content" data-tab-content="tabs">
-              <p class="section-description" data-i18n="options.generator.tabs.description"></p>
-              <div id="generateTabsList" class="chrome-tabs-list">
-                <!-- Open tabs list populated via JS -->
-              </div>
-            </div>
-
-            <!-- Swagger Tab -->
-            <div class="generate-tab-content" data-tab-content="swagger">
-              <div class="swagger-input-group">
-                <div class="generate-field half-width">
-                  <label for="generateSwaggerFile" data-i18n="options.generator.swagger.file"></label>
-                  <input id="generateSwaggerFile" type="file" accept=".json,application/json">
+          <div class="generate-dialog__body">
+            <div class="generate-tab-contents">
+              <!-- cURL Tab -->
+              <div class="generate-tab-content is-active" data-tab-content="curl">
+                <div class="generate-field">
+                  <label for="generateCurlInput" data-i18n="options.generator.curl.label"></label>
+                  <textarea id="generateCurlInput" class="code-textarea" placeholder="curl 'https://api.example.com/v1/users' -H 'Authorization: Bearer <token>'"></textarea>
                 </div>
-                <div class="generate-field half-width">
-                  <label for="generateSwaggerUrl" data-i18n="options.generator.swagger.url"></label>
-                  <div class="input-with-button">
-                    <input id="generateSwaggerUrl" type="url" placeholder="https://api.example.com/swagger/v1/swagger.json">
-                    <button id="btnLoadSwaggerUrl" class="icon-button" type="button" data-i18n="options.generator.swagger.load"></button>
+              </div>
+
+              <!-- URL Tab -->
+              <div class="generate-tab-content" data-tab-content="url">
+                <div class="generate-field">
+                  <label for="generateUrlInput" data-i18n="options.generator.url.label"></label>
+                  <input id="generateUrlInput" type="text" placeholder="https://api.example.com/v1/users/123/profile" class="wide-input">
+                </div>
+                <div id="generateUrlPatterns" class="pattern-suggestions-list" hidden>
+                  <span class="section-subtitle" data-i18n="options.generator.patterns.subtitle"></span>
+                  <div id="generateUrlPatternsList" class="suggestions-grid"></div>
+                </div>
+              </div>
+
+              <!-- Active Tabs Tab -->
+              <div class="generate-tab-content" data-tab-content="tabs">
+                <p class="section-description" data-i18n="options.generator.tabs.description"></p>
+                <div id="generateTabsList" class="chrome-tabs-list">
+                  <!-- Open tabs list populated via JS -->
+                </div>
+              </div>
+
+              <!-- Swagger Tab -->
+              <div class="generate-tab-content" data-tab-content="swagger">
+                <div class="swagger-input-group">
+                  <div class="generate-field half-width">
+                    <label for="generateSwaggerFile" data-i18n="options.generator.swagger.file"></label>
+                    <input id="generateSwaggerFile" type="file" accept=".json,application/json">
+                  </div>
+                  <div class="generate-field half-width">
+                    <label for="generateSwaggerUrl" data-i18n="options.generator.swagger.url"></label>
+                    <div class="input-with-button">
+                      <input id="generateSwaggerUrl" type="url" placeholder="https://api.example.com/swagger/v1/swagger.json">
+                      <button id="btnLoadSwaggerUrl" class="icon-button" type="button" data-i18n="options.generator.swagger.load"></button>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Swagger endpoint selector (hidden until parsed) -->
+                <div id="swaggerEndpointsContainer" class="swagger-endpoints-container" hidden>
+                  <div class="swagger-filter-bar">
+                    <input id="swaggerEndpointSearch" type="search" placeholder="Search paths..." class="swagger-search-input" data-i18n-placeholder="options.generator.swagger.searchPlaceholder">
+                    <select id="swaggerTagFilter" class="swagger-tag-select">
+                      <option value="" data-i18n="options.generator.swagger.allTags">All Tags</option>
+                    </select>
+                    <button id="swaggerSelectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.selectAll"></button>
+                    <button id="swaggerDeselectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.deselectAll"></button>
+                  </div>
+                  <div class="swagger-table-wrapper">
+                    <table class="swagger-endpoints-table">
+                      <colgroup>
+                        <col style="width: 45px;">
+                        <col style="width: 85px;">
+                        <col style="width: 360px;">
+                        <col style="width: 380px;">
+                        <col style="width: 150px;">
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th><input id="swaggerHeaderSelectAll" type="checkbox"></th>
+                          <th data-i18n="common.method"></th>
+                          <th data-i18n="common.path"></th>
+                          <th data-i18n="options.generator.swagger.editRule"></th>
+                          <th data-i18n="options.generator.swagger.style"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="swaggerEndpointsBody">
+                        <!-- Parsed endpoints list -->
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
-              
-              <!-- Swagger endpoint selector (hidden until parsed) -->
-              <div id="swaggerEndpointsContainer" class="swagger-endpoints-container" hidden>
-                <div class="swagger-filter-bar">
-                  <input id="swaggerEndpointSearch" type="search" placeholder="Search paths..." class="swagger-search-input" data-i18n-placeholder="options.generator.swagger.searchPlaceholder">
-                  <button id="swaggerSelectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.selectAll"></button>
-                  <button id="swaggerDeselectAll" class="icon-button" type="button" data-i18n="options.generator.swagger.deselectAll"></button>
-                </div>
-                <div class="swagger-table-wrapper">
-                  <table class="swagger-endpoints-table">
-                    <colgroup>
-                      <col style="width: 45px;">
-                      <col style="width: 85px;">
-                      <col style="width: 360px;">
-                      <col style="width: 380px;">
-                      <col style="width: 150px;">
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th><input id="swaggerHeaderSelectAll" type="checkbox"></th>
-                        <th data-i18n="common.method"></th>
-                        <th data-i18n="common.path"></th>
-                        <th data-i18n="options.generator.swagger.editRule"></th>
-                        <th data-i18n="options.generator.swagger.style"></th>
-                      </tr>
-                    </thead>
-                    <tbody id="swaggerEndpointsBody">
-                      <!-- Parsed endpoints list -->
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
-          </div>
 
-          <!-- Global / Bulk Customization (Shown for cURL, Single URL, and Swagger) -->
-          <div id="generateGlobalConfig" class="generate-global-config">
-            <span class="section-subtitle" data-i18n="options.generator.globalConfig.title"></span>
-            <div class="global-config-grid">
-              <label style="position: relative;">
-                <span><span data-i18n="options.generator.prodUrl"></span> <span style="color: var(--danger);">*</span></span>
-                <div class="input-with-select">
-                  <input id="generateBaseProdUrl" type="text" placeholder="https://api.example.com">
-                  <select id="generateProdUrlHistories" style="display: none;"></select>
-                </div>
-                <span class="validation-error-msg" id="prodUrlError"></span>
-              </label>
-              <label style="position: relative;">
-                <span><span data-i18n="options.generator.redirectUrl"></span> <span style="color: var(--danger);">*</span></span>
-                <div class="input-with-select">
-                  <input id="generateRedirectUrl" type="text" placeholder="http://localhost:5000">
-                  <select id="generateRedirectHistories" style="display: none;"></select>
-                </div>
-                <span class="validation-error-msg" id="redirectUrlError"></span>
-              </label>
-              <label>
-                <span data-i18n="options.generator.globalGroup"></span>
-                <input id="generateGlobalGroup" type="text" placeholder="api_gateway">
-              </label>
-              <div id="generatePatternStyleContainer" hidden style="display: flex; gap: 12px;">
-                <label style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <span data-i18n="options.generator.patternStyle"></span>
-                  <div class="segmented-control" id="generatePatternStyle">
-                    <label class="segment">
-                      <input type="radio" name="generatePatternStyleMode" value="specific" checked>
-                      <span data-i18n="options.generator.ruleMode.specific"></span>
-                    </label>
-                    <label class="segment">
-                      <input type="radio" name="generatePatternStyleMode" value="simple">
-                      <span data-i18n="options.generator.ruleMode.simple"></span>
-                    </label>
+            <!-- Global / Bulk Customization (Shown for cURL, Single URL, and Swagger) -->
+            <div id="generateGlobalConfig" class="generate-global-config">
+              <span class="section-subtitle" data-i18n="options.generator.globalConfig.title"></span>
+              <div class="global-config-grid">
+                <label style="position: relative;">
+                  <span><span data-i18n="options.generator.prodUrl"></span> <span style="color: var(--danger);">*</span></span>
+                  <div class="input-with-select">
+                    <input id="generateBaseProdUrl" type="text" placeholder="https://api.example.com">
+                    <select id="generateProdUrlHistories" style="display: none;"></select>
                   </div>
+                  <span class="validation-error-msg" id="prodUrlError"></span>
                 </label>
-                <label id="generateBaseOnContainer" hidden style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <span data-i18n="options.generator.baseOn"></span>
-                  <div class="segmented-control" id="generateBaseOn">
-                    <label class="segment">
-                      <input type="radio" name="generateBaseOnMode" value="path" checked>
-                      <span data-i18n="options.generator.baseOn.uniquePath"></span>
+                <label style="position: relative;">
+                  <span><span data-i18n="options.generator.redirectUrl"></span> <span style="color: var(--danger);">*</span></span>
+                  <div class="input-with-select">
+                    <input id="generateRedirectUrl" type="text" placeholder="http://localhost:5000">
+                    <select id="generateRedirectHistories" style="display: none;"></select>
+                  </div>
+                  <span class="validation-error-msg" id="redirectUrlError"></span>
+                </label>
+                <label>
+                  <span data-i18n="options.generator.globalGroup"></span>
+                  <input id="generateGlobalGroup" type="text" placeholder="api_gateway">
+                </label>
+                <div id="generatePatternStyleContainer" hidden style="display: flex; gap: 12px;">
+                  <label style="flex: 2; display: flex; flex-direction: column; gap: 6px;">
+                    <span data-i18n="options.generator.patternStyle"></span>
+                    <div class="segmented-control" id="generatePatternStyle">
+                      <label class="segment">
+                        <input type="radio" name="generatePatternStyleMode" value="specific" checked>
+                        <span data-i18n="options.generator.ruleMode.specific"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generatePatternStyleMode" value="simple">
+                        <span data-i18n="options.generator.ruleMode.simple"></span>
+                      </label>
+                    </div>
+                  </label>
+                  <label id="generateBaseOnContainer" hidden style="flex: 3; display: flex; flex-direction: column; gap: 6px;">
+                    <span data-i18n="options.generator.baseOn"></span>
+                    <div class="segmented-control" id="generateBaseOn">
+                      <label class="segment">
+                        <input type="radio" name="generateBaseOnMode" value="path" checked>
+                        <span data-i18n="options.generator.baseOn.uniquePath"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateBaseOnMode" value="tags">
+                        <span data-i18n="options.generator.baseOn.tags"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateBaseOnMode" value="title">
+                        <span data-i18n="options.generator.baseOn.title"></span>
+                      </label>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Global Credential Presets & Extraction Details -->
+              <div id="generateCredentialPresets" class="generate-credential-presets">
+                <span class="section-subtitle" style="margin-bottom: 0;" data-i18n="options.generator.credentials.presetTitle"></span>
+                
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <!-- Credential Mode -->
+                  <label style="flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px;">
+                    <span data-i18n="options.generator.credentials.mode"></span>
+                    <div class="segmented-control" id="generateCredentialMode">
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialMode" value="disabled" checked>
+                        <span data-i18n="options.generator.credentials.modeDisabled"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialMode" value="sync">
+                        <span data-i18n="options.generator.credentials.modeSync"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialMode" value="manual">
+                        <span data-i18n="options.generator.credentials.modeManual"></span>
+                      </label>
+                    </div>
+                  </label>
+
+                  <!-- Credential Source (shown when sync mode active) -->
+                  <label id="generateCredentialSourceContainer" hidden style="flex: 1.5; min-width: 260px; display: flex; flex-direction: column; gap: 6px;">
+                    <span data-i18n="options.generator.credentials.source"></span>
+                    <div class="segmented-control" id="generateCredentialSource">
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialSource" value="request" checked>
+                        <span data-i18n="options.generator.credentials.sourceRequest"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialSource" value="storage">
+                        <span data-i18n="options.generator.credentials.sourceStorage"></span>
+                      </label>
+                      <label class="segment">
+                        <input type="radio" name="generateCredentialSource" value="cookie">
+                        <span data-i18n="options.generator.credentials.sourceCookie"></span>
+                      </label>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- Sync Targets Options (shown when sync mode active) -->
+                <div id="generateSyncTargetsContainer" hidden style="display: flex; flex-direction: column; gap: 8px; background: var(--panel-soft); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);">
+                  <div style="font-size: 12px; font-weight: 600; color: var(--muted);" data-i18n="options.generator.credentials.syncTargetsTitle"></div>
+                  <div class="chip-group" style="margin-top: 2px;">
+                    <label class="chip-label">
+                      <input id="generateSyncHeaders" type="checkbox">
+                      <span class="chip-content" data-i18n="common.headers"></span>
                     </label>
-                    <label class="segment">
-                      <input type="radio" name="generateBaseOnMode" value="tags">
-                      <span data-i18n="options.generator.baseOn.tags"></span>
+                    <label class="chip-label">
+                      <input id="generateSyncAuthorization" type="checkbox" checked>
+                      <span class="chip-content" data-i18n="common.authorization"></span>
+                    </label>
+                    <label class="chip-label">
+                      <input id="generateSyncCookies" type="checkbox">
+                      <span class="chip-content" data-i18n="options.editor.sessionCookies"></span>
                     </label>
                   </div>
-                </label>
+                  <div id="generateSyncHeadersFilterContainer" hidden style="margin-top: 4px;">
+                    <input id="generateSyncHeadersFilter" type="text" placeholder="Selective Headers (e.g. x-api-key, x-version)" style="width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 12px;">
+                  </div>
+                </div>
+
+                <!-- Progressive Extraction Details Container (shown when storage or cookie source active) -->
+                <div id="generateExtractionDetailsContainer" hidden style="display: flex; flex-direction: column; gap: 10px; background: var(--panel-soft); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);">
+                  <div style="font-size: 12px; font-weight: 600; color: var(--text);" data-i18n="options.generator.credentials.extractionTitle"></div>
+
+                  <!-- Browser Storage Details -->
+                  <div id="generateStorageDetails" hidden style="display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                      <label id="generateStorageAreaContainer" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600;">
+                        <span data-i18n="options.editor.storageArea"></span>
+                        <div class="segmented-control" id="generateStorageArea" style="height: 36px;">
+                          <label class="segment">
+                            <input type="radio" name="generateStorageArea" value="localStorage" checked>
+                            <span data-i18n="common.localStorage"></span>
+                          </label>
+                          <label class="segment">
+                            <input type="radio" name="generateStorageArea" value="sessionStorage">
+                            <span data-i18n="common.sessionStorage"></span>
+                          </label>
+                        </div>
+                      </label>
+                      <label id="generateAuthPrefixContainer" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600;">
+                        <span data-i18n="options.editor.authorizationPrefix"></span>
+                        <input id="generateAuthorizationPrefix" type="text" placeholder="Bearer" style="height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 12px; box-sizing: border-box;">
+                      </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                      <label id="generateAuthKeyContainer" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600;">
+                        <span data-i18n="options.editor.authorizationKey"></span>
+                        <input id="generateAuthorizationKey" type="text" placeholder="token" style="height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 12px; box-sizing: border-box;">
+                      </label>
+                      <label id="generateHeadersKeyContainer" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600;">
+                        <span data-i18n="options.editor.headersStorageKey"></span>
+                        <input id="generateHeadersKey" type="text" placeholder="headers" style="height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 12px; box-sizing: border-box;">
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Cookies API Details -->
+                  <div id="generateCookieDetails" hidden style="display: flex; flex-direction: column; gap: 6px;">
+                    <label id="generateCookieNamesContainer" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600;">
+                      <span data-i18n="options.editor.cookieNames"></span>
+                      <input id="generateCookieNames" type="text" placeholder="session_id, token, auth_token" style="height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); font-size: 12px; box-sizing: border-box;">
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -268,29 +390,11 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Generated Rule Preview (Preview Rules to be Formed) -->
-          <div id="generateRulePreviewContainer" class="generate-rule-preview-container" hidden>
-            <span class="section-subtitle" data-i18n="options.generator.preview.title"></span>
-            <div id="generateRulePreviewList" class="generate-rule-preview-list"></div>
-          </div>
-
-          <!-- Realtime Live Matcher Playground -->
-          <div class="generate-playground">
-            <span class="section-subtitle" data-i18n="options.generator.playground.title"></span>
-            <div class="playground-grid">
-              <label class="full-width">
-                <span data-i18n="options.generator.playground.testUrl"></span>
-                <input id="generatePlaygroundInput" type="text" placeholder="https://api.example.com/v1/users/get/123-uuid">
-              </label>
-              <div class="playground-results">
-                <div class="playground-status-badge" id="generatePlaygroundStatus" data-status="none"></div>
-                <div class="playground-redirect-container">
-                  <span data-i18n="options.generator.playground.redirectedTo"></span>
-                  <code id="generatePlaygroundRedirectResult"></code>
-                </div>
-              </div>
+            <!-- Generated Rule Preview (Preview Rules to be Formed) -->
+            <div id="generateRulePreviewContainer" class="generate-rule-preview-container" hidden>
+              <span class="section-subtitle" data-i18n="options.generator.preview.title"></span>
+              <div id="generateRulePreviewList" class="generate-rule-preview-list"></div>
             </div>
           </div>
 
@@ -299,10 +403,6 @@
               <span id="generateRuleStatsMsg"></span>
             </div>
             <div class="generate-footer-buttons">
-              <button id="generateCancel" class="icon-button" type="button">
-                <img data-icon="icons8-close-32.png" src="../shared/imgs/icons/b/icons8-close-32.png" alt="" width="16" height="16">
-                <span data-i18n="options.generator.cancel"></span>
-              </button>
               <button id="generateSaveDraft" class="icon-button" type="button">
                 <img data-icon="icons8-book-32.png" src="../shared/imgs/icons/b/icons8-book-32.png" alt="" width="16" height="16">
                 <span data-i18n="options.generator.saveDraft"></span>
@@ -403,81 +503,93 @@
 
       <section class="options-layout">
         <aside class="rule-list-panel">
-          <div class="panel-title">
-            <strong class="panel-title__label">
-              <img data-icon="icons8-route-32.png" src="../shared/imgs/icons/b/icons8-route-32.png" alt="" width="16" height="16">
-              <span data-i18n="options.rules.title"></span>
-            </strong>
-            <span id="ruleCount"></span>
-          </div>
-          <button id="toggleRuleControls" class="filter-toggle" type="button" aria-expanded="false" data-i18n-title="options.actions.showFilters">
-            <span class="filter-toggle__label">
-              <img data-role="filterToggleStateIcon" data-icon="icons8-eye-32.png" src="../shared/imgs/icons/b/icons8-eye-32.png" alt="" width="16" height="16">
-              <span data-role="filterToggleLabel" data-i18n="options.actions.showFilters"></span>
-            </span>
-            <img class="filter-toggle__icon" data-icon="icons8-arrow-down-32.png" src="../shared/imgs/icons/b/icons8-arrow-down-32.png" alt="" width="16" height="16" aria-hidden="true">
-          </button>
-          <div id="ruleListControls" class="rule-list-controls" hidden>
-            <label class="search-field">
-              <img data-icon="icons8-search-32.png" src="../shared/imgs/icons/b/icons8-search-32.png" alt="" width="16" height="16">
-              <input id="ruleSearch" type="search" data-i18n-placeholder="options.rules.search.placeholder" data-i18n-title="options.rules.search.title">
-            </label>
-            <select id="statusFilter" data-i18n-aria-label="options.rules.filter.status.label" data-i18n-title="options.rules.filter.status.title">
-              <option value="all" data-i18n="options.rules.filter.allStatuses"></option>
-              <option value="draft" data-i18n="common.draft"></option>
-              <option value="unsaved" data-i18n="common.unsavedChanges"></option>
-              <option value="waiting" data-i18n="options.status.waiting"></option>
-              <option value="ready" data-i18n="common.ready"></option>
-              <option value="enabled" data-i18n="common.enabled"></option>
-              <option value="disabled" data-i18n="common.disabled"></option>
-              <option value="invalid" data-i18n="common.invalid"></option>
-              <option value="conflict" data-i18n="common.conflict"></option>
-            </select>
-            <select id="groupFilter" data-i18n-aria-label="options.rules.filter.group.label" data-i18n-title="options.rules.filter.group.title">
-              <option value="all" data-i18n="options.rules.filter.allGroups"></option>
-            </select>
-            <select id="credentialFilter" data-i18n-aria-label="options.rules.filter.credential.label" data-i18n-title="options.rules.filter.credential.title">
-              <option value="all" data-i18n="options.rules.filter.allCredentials"></option>
-              <option value="manual" data-i18n="common.manual"></option>
-              <option value="sync" data-i18n="options.editor.syncFromSource"></option>
-            </select>
-          </div>
-          <div id="bulkToolbar" class="bulk-toolbar" hidden>
-            <div class="bulk-toolbar__summary">
-              <label data-i18n-title="options.rules.selectVisible.title">
-                <input id="selectVisibleRules" type="checkbox">
-                <span id="selectedRuleCount"></span>
+
+            <div class="panel-title">
+              <strong class="panel-title__label">
+                <img data-icon="icons8-route-32.png" src="../shared/imgs/icons/b/icons8-route-32.png" alt="" width="16" height="16">
+                <span data-i18n="options.rules.title"></span>
+              </strong>
+              <span id="ruleCount"></span>
+            </div>
+            <button id="toggleRuleControls" class="filter-toggle" type="button" aria-expanded="false" data-i18n-title="options.actions.showFilters">
+              <span class="filter-toggle__label">
+                <img data-role="filterToggleStateIcon" data-icon="icons8-eye-32.png" src="../shared/imgs/icons/b/icons8-eye-32.png" alt="" width="16" height="16">
+                <span data-role="filterToggleLabel" data-i18n="options.actions.showFilters"></span>
+              </span>
+              <img class="filter-toggle__icon" data-icon="icons8-arrow-down-32.png" src="../shared/imgs/icons/b/icons8-arrow-down-32.png" alt="" width="16" height="16" aria-hidden="true">
+            </button>
+            <div id="ruleListControls" class="rule-list-controls" hidden>
+              <label class="search-field">
+                <img data-icon="icons8-search-32.png" src="../shared/imgs/icons/b/icons8-search-32.png" alt="" width="16" height="16">
+                <input id="ruleSearch" type="search" data-i18n-placeholder="options.rules.search.placeholder" data-i18n-title="options.rules.search.title">
               </label>
-              <button id="bulkExport" class="icon-button" type="button" data-i18n-title="options.actions.export.title">
-                <img data-icon="icons8-export-32.png" src="../shared/imgs/icons/b/icons8-export-32.png" alt="" width="16" height="16">
-                <span data-role="bulkExportLabel" data-i18n="options.actions.exportAll"></span>
-              </button>
+              <select id="statusFilter" data-i18n-aria-label="options.rules.filter.status.label" data-i18n-title="options.rules.filter.status.title">
+                <option value="all" data-i18n="options.rules.filter.allStatuses"></option>
+                <option value="draft" data-i18n="common.draft"></option>
+                <option value="unsaved" data-i18n="common.unsavedChanges"></option>
+                <option value="waiting" data-i18n="options.status.waiting"></option>
+                <option value="ready" data-i18n="common.ready"></option>
+                <option value="enabled" data-i18n="common.enabled"></option>
+                <option value="disabled" data-i18n="common.disabled"></option>
+                <option value="invalid" data-i18n="common.invalid"></option>
+                <option value="conflict" data-i18n="common.conflict"></option>
+              </select>
+              <select id="groupFilter" data-i18n-aria-label="options.rules.filter.group.label" data-i18n-title="options.rules.filter.group.title">
+                <option value="all" data-i18n="options.rules.filter.allGroups"></option>
+              </select>
+              <select id="credentialFilter" data-i18n-aria-label="options.rules.filter.credential.label" data-i18n-title="options.rules.filter.credential.title">
+                <option value="all" data-i18n="options.rules.filter.allCredentials"></option>
+                <option value="manual" data-i18n="common.manual"></option>
+                <option value="sync" data-i18n="options.editor.syncFromSource"></option>
+              </select>
+              <select id="typeFilter" data-i18n-aria-label="options.rules.filter.type.label" data-i18n-title="options.rules.filter.type.title">
+                <option value="all" data-i18n="options.rules.filter.allTypes"></option>
+                <option value="all_path" data-i18n="options.rules.filter.type.path"></option>
+                <option value="all_tag" data-i18n="options.rules.filter.type.tag"></option>
+                <option value="get">GET</option>
+                <option value="post">POST</option>
+                <option value="put">PUT</option>
+                <option value="delete">DELETE</option>
+                <option value="patch">PATCH</option>
+              </select>
             </div>
-            <div class="bulk-actions" data-role="bulkActions" hidden>
-              <button id="bulkEnable" class="icon-button" type="button" data-i18n-title="options.actions.enable.title">
-                <img data-icon="icons8-checkbox-checked-32.png" src="../shared/imgs/icons/b/icons8-checkbox-checked-32.png" alt="" width="16" height="16">
-                <span data-i18n="options.actions.enable"></span>
-              </button>
-              <button id="bulkDisable" class="icon-button" type="button" data-i18n-title="options.actions.disable.title">
-                <img data-icon="icons8-checkbox-32.png" src="../shared/imgs/icons/b/icons8-checkbox-32.png" alt="" width="16" height="16">
-                <span data-i18n="options.actions.disable"></span>
-              </button>
-              <button id="bulkDuplicate" class="icon-button" type="button" data-i18n-title="options.actions.duplicate.title">
-                <img data-icon="icons8-duplicate-32.png" src="../shared/imgs/icons/b/icons8-duplicate-32.png" alt="" width="16" height="16">
-                <span data-i18n="common.duplicate"></span>
-              </button>
-              <button id="bulkRemove" class="icon-button" type="button" data-i18n-title="options.actions.remove.title">
-                <img data-icon="icons8-remove-32.png" src="../shared/imgs/icons/b/icons8-remove-32.png" alt="" width="16" height="16">
-                <span data-i18n="common.remove"></span>
-              </button>
-              <input id="bulkGroupName" type="text" data-i18n-placeholder="options.actions.moveToGroup.placeholder" data-i18n-title="options.actions.moveGroup.title">
-              <button id="bulkMoveGroup" class="icon-button" type="button" data-i18n-title="options.actions.move.title">
-                <img data-icon="icons8-group-32.png" src="../shared/imgs/icons/b/icons8-group-32.png" alt="" width="16" height="16">
-                <span data-i18n="common.move"></span>
-              </button>
+            <div id="bulkToolbar" class="bulk-toolbar" hidden>
+              <div class="bulk-toolbar__summary">
+                <label data-i18n-title="options.rules.selectVisible.title">
+                  <input id="selectVisibleRules" type="checkbox">
+                  <span id="selectedRuleCount"></span>
+                </label>
+                <button id="bulkExport" class="icon-button" type="button" data-i18n-title="options.actions.export.title">
+                  <img data-icon="icons8-export-32.png" src="../shared/imgs/icons/b/icons8-export-32.png" alt="" width="16" height="16">
+                  <span data-role="bulkExportLabel" data-i18n="options.actions.exportAll"></span>
+                </button>
+              </div>
+              <div class="bulk-actions" data-role="bulkActions" hidden>
+                <button id="bulkEnable" class="icon-button" type="button" data-i18n-title="options.actions.enable.title">
+                  <img data-icon="icons8-checkbox-checked-32.png" src="../shared/imgs/icons/b/icons8-checkbox-checked-32.png" alt="" width="16" height="16">
+                  <span data-i18n="options.actions.enable"></span>
+                </button>
+                <button id="bulkDisable" class="icon-button" type="button" data-i18n-title="options.actions.disable.title">
+                  <img data-icon="icons8-checkbox-32.png" src="../shared/imgs/icons/b/icons8-checkbox-32.png" alt="" width="16" height="16">
+                  <span data-i18n="options.actions.disable"></span>
+                </button>
+                <button id="bulkDuplicate" class="icon-button" type="button" data-i18n-title="options.actions.duplicate.title">
+                  <img data-icon="icons8-duplicate-32.png" src="../shared/imgs/icons/b/icons8-duplicate-32.png" alt="" width="16" height="16">
+                  <span data-i18n="common.duplicate"></span>
+                </button>
+                <button id="bulkRemove" class="icon-button" type="button" data-i18n-title="options.actions.remove.title">
+                  <img data-icon="icons8-remove-32.png" src="../shared/imgs/icons/b/icons8-remove-32.png" alt="" width="16" height="16">
+                  <span data-i18n="common.remove"></span>
+                </button>
+                <input id="bulkGroupName" type="text" data-i18n-placeholder="options.actions.moveToGroup.placeholder" data-i18n-title="options.actions.moveGroup.title">
+                <button id="bulkMoveGroup" class="icon-button" type="button" data-i18n-title="options.actions.move.title">
+                  <img data-icon="icons8-group-32.png" src="../shared/imgs/icons/b/icons8-group-32.png" alt="" width="16" height="16">
+                  <span data-i18n="common.move"></span>
+                </button>
+              </div>
             </div>
-          </div>
-          <div id="rulesList" class="rule-list" aria-live="polite"></div>
+            <div id="rulesList" class="rule-list" aria-live="polite"></div>
+
         </aside>
 
         <section id="editorPanel" class="editor-panel" aria-live="polite"></section>
@@ -616,6 +728,8 @@
             </strong>
           </div>
           <div class="editor-grid">
+
+
             <div class="field-label span-2">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span data-i18n="options.editor.sourcePattern"></span>
@@ -632,6 +746,31 @@
               </div>
               <input data-field="targetUrl" type="text" data-i18n-placeholder="options.editor.target.placeholder" data-i18n-title="options.editor.target.title">
               <small class="field-feedback" data-feedback-for="targetUrl"></small>
+            </div>
+
+            <!-- Interactive Regex Playground Container -->
+            <div data-role="regexPlayground" class="regex-playground span-2" hidden>
+              <div class="regex-playground__header">
+                <strong class="regex-playground__title">
+                  <img data-icon="icons8-route-32.png" src="../shared/imgs/icons/b/icons8-route-32.png" alt="" width="14" height="14">
+                  <span data-i18n="options.editor.regexPlayground.title"></span>
+                </strong>
+                <span data-role="regexMatchBadge" class="regex-badge regex-badge--invalid" data-i18n="options.editor.regexPlayground.invalidPattern"></span>
+              </div>
+              <div class="regex-playground__body">
+                <div class="field-label">
+                  <span data-i18n="options.editor.regexPlayground.sampleUrl"></span>
+                  <input data-role="regexTestInput" type="text" data-i18n-placeholder="options.editor.regexPlayground.samplePlaceholder">
+                </div>
+                <div class="regex-playground__groups">
+                  <span class="regex-playground__subtitle" data-i18n="options.editor.regexPlayground.captureGroups"></span>
+                  <div data-role="regexGroupsContainer" class="regex-groups-grid"></div>
+                </div>
+                <div class="regex-playground__result">
+                  <span class="regex-playground__subtitle" data-i18n="options.editor.regexPlayground.resultUrl"></span>
+                  <div data-role="regexSubstitutedResult" class="regex-result-box"></div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -798,6 +937,10 @@
                 <input data-field="syncCookies" type="checkbox">
                 <span class="chip-content" data-i18n="options.editor.sessionCookies"></span>
               </label>
+            </div>
+            <div id="syncHeadersFilterContainer" style="margin-top: 10px;" hidden>
+              <div style="font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">Selective Header Sync (comma-separated, e.g. x-client-id, x-version)</div>
+              <input id="syncHeadersFilter" data-field="syncHeadersFilter" type="text" placeholder="All headers" style="width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-soft); color: var(--text);">
             </div>
           </div>
 

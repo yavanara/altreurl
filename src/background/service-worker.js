@@ -14,11 +14,13 @@ import {
 const CAPTURE_FILTER = { urls: ["<all_urls>"] };
 const CAPTURE_OPTIONS = ["requestHeaders", "extraHeaders"];
 const pendingRedirects = new Map();
-let appliedRuleWriteSignature = "";
-let i18nReady = null;
-
+const TOAST_AUTO_DISMISS_MS = 5000;
+const TOAST_Z_INDEX = 2147483647;
 const HYDRATION_TIMEOUT_MS = 5000;
 const COOKIE_TIMEOUT_MS = 3000;
+
+let appliedRuleWriteSignature = "";
+let i18nReady = null;
 
 function withTimeout(promise, ms, label = "Operation") {
   return Promise.race([
@@ -29,14 +31,40 @@ function withTimeout(promise, ms, label = "Operation") {
   ]);
 }
 
-chrome.webRequest.onBeforeSendHeaders.addListener(captureSourceRequest, CAPTURE_FILTER, CAPTURE_OPTIONS);
+// --- WebRequest Listeners (synchronous wrappers with error catching) ---
 
-chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
+chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
+  captureSourceRequest(details).catch((error) => {
+    console.warn("captureSourceRequest error:", error?.message || error);
+  });
+}, CAPTURE_FILTER, CAPTURE_OPTIONS);
+
+chrome.webRequest.onBeforeRedirect.addListener((details) => {
+  handleBeforeRedirect(details).catch((error) => {
+    console.warn("onBeforeRedirect error:", error?.message || error);
+  });
+}, CAPTURE_FILTER);
+
+chrome.webRequest.onCompleted.addListener((details) => {
+  handleCompleted(details).catch((error) => {
+    console.warn("onCompleted error:", error?.message || error);
+  });
+}, CAPTURE_FILTER);
+
+chrome.webRequest.onErrorOccurred.addListener((details) => {
+  handleErrorOccurred(details).catch((error) => {
+    console.warn("onErrorOccurred error:", error?.message || error);
+  });
+}, CAPTURE_FILTER);
+
+// --- Core async handlers ---
+
+async function handleBeforeRedirect(details) {
   if (!details.redirectUrl) return;
 
   await ensureI18nReady();
   const rules = await getRedirectRules();
-  const candidateRules = rules.filter(rule => {
+  const candidateRules = rules.filter((rule) => {
     if (!rule.enabled || !rule.sourcePattern || !rule.targetUrl) return false;
     try {
       return buildSourceMatcher(rule.sourcePattern, rule.patternType)(details.url);
@@ -57,7 +85,7 @@ chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
     }
   }
 
-  const matchedRule = candidateRules.find(rule => {
+  const matchedRule = candidateRules.find((rule) => {
     if (!hasSyncEnabled(rule)) return true;
     return isIncognito ? Boolean(rule.incognitoLastSyncedAt) : Boolean(rule.lastSyncedAt);
   });
@@ -71,64 +99,77 @@ chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
       tabId: details.tabId
     });
   }
-}, CAPTURE_FILTER);
+}
 
-chrome.webRequest.onCompleted.addListener(async (details) => {
+async function handleCompleted(details) {
   const info = pendingRedirects.get(details.requestId);
 
-  if (info) {
-    pendingRedirects.delete(details.requestId);
-    
-    if (details.method === "OPTIONS") return;
+  if (!info) return;
+  pendingRedirects.delete(details.requestId);
 
-    await appendDiagnosticLog("network_redirect_success", "info", {
-      ruleName: info.ruleName,
-      originalUrl: info.originalUrl,
-      redirectUrl: info.redirectUrl,
-      statusCode: details.statusCode
-    });
-    
-    if (details.statusCode === 401) {
-      await resetRuleSync(info.ruleId, info.ruleName, info.tabId);
-    } else {
-      const successNotificationsEnabled = await getSuccessNotificationsEnabled();
-      if (successNotificationsEnabled) {
-        showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
-      }
+  if (details.method === "OPTIONS") return;
+
+  await ensureI18nReady();
+
+  await appendDiagnosticLog("network_redirect_success", "info", {
+    ruleName: info.ruleName,
+    originalUrl: info.originalUrl,
+    redirectUrl: info.redirectUrl,
+    statusCode: details.statusCode
+  });
+
+  if (details.statusCode === 401) {
+    await resetRuleSync(info.ruleId, info.ruleName, info.tabId);
+  } else {
+    const successNotificationsEnabled = await getSuccessNotificationsEnabled();
+    if (successNotificationsEnabled) {
+      showToastInTab(info.tabId, "success", `Altreurl: ${info.ruleName}`, `Redirected to ${info.redirectUrl} (${details.statusCode})`);
     }
   }
-}, CAPTURE_FILTER);
+}
 
-chrome.webRequest.onErrorOccurred.addListener(async (details) => {
+async function handleErrorOccurred(details) {
   const info = pendingRedirects.get(details.requestId);
 
-  if (info) {
-    pendingRedirects.delete(details.requestId);
-    await appendDiagnosticLog("network_redirect_error", "error", {
-      ruleName: info.ruleName,
-      originalUrl: info.originalUrl,
-      redirectUrl: info.redirectUrl,
-      error: details.error
-    });
-    
-    showToastInTab(info.tabId, "error", `Altreurl Error: ${info.ruleName}`, `${details.error} for ${info.redirectUrl}`);
-  }
-}, CAPTURE_FILTER);
+  if (!info) return;
+  pendingRedirects.delete(details.requestId);
+
+  await ensureI18nReady();
+
+  await appendDiagnosticLog("network_redirect_error", "error", {
+    ruleName: info.ruleName,
+    originalUrl: info.originalUrl,
+    redirectUrl: info.redirectUrl,
+    error: details.error
+  });
+
+  showToastInTab(info.tabId, "error", `Altreurl Error: ${info.ruleName}`, `${details.error} for ${info.redirectUrl}`);
+}
+
+// --- Service Worker lifecycle ---
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await ensureI18nReady();
-  const rules = await getRedirectRules();
-  await prepareAndApplyRules(rules, { persistHydratedRules: true });
+  try {
+    await ensureI18nReady();
+    const rules = await getRedirectRules();
+    await prepareAndApplyRules(rules, { persistHydratedRules: true });
+  } catch (error) {
+    console.warn("onInstalled error:", error?.message || error);
+  }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await ensureI18nReady();
-  const rules = await getRedirectRules();
-  await prepareAndApplyRules(rules, { persistHydratedRules: true });
+  try {
+    await ensureI18nReady();
+    const rules = await getRedirectRules();
+    await prepareAndApplyRules(rules, { persistHydratedRules: true });
+  } catch (error) {
+    console.warn("onStartup error:", error?.message || error);
+  }
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete" && tab.url) {
+  if (changeInfo.status === "complete" && tab?.url) {
     try {
       const rules = await getRedirectRules();
       const hasAutoSyncRules = rules.some((rule) => {
@@ -153,6 +194,24 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+chrome.tabs.onCreated.addListener(async () => {
+  try {
+    const rules = await getRedirectRules();
+    await prepareAndApplyRules(rules);
+  } catch (_e) {
+    // Ignore tab listener errors
+  }
+});
+
+chrome.tabs.onRemoved.addListener(async () => {
+  try {
+    const rules = await getRedirectRules();
+    await prepareAndApplyRules(rules);
+  } catch (_e) {
+    // Ignore tab listener errors
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "SAVE_RULES") {
     return false;
@@ -165,29 +224,57 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
+// --- Storage change listener ---
+
+let pendingStorageChangeTimer = null;
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[STORAGE_KEYS.rules]) {
+  if (areaName !== "local") {
     return;
   }
 
-  const nextRules = changes[STORAGE_KEYS.rules].newValue || [];
+  const hasRulesChange = Boolean(changes[STORAGE_KEYS.rules]);
+  const hasBypassChange = Boolean(changes.globalBypass || changes.domainBypassList);
 
-  if (shouldSkipAppliedRuleWrite(nextRules)) {
+  if (!hasRulesChange && !hasBypassChange) {
     return;
   }
 
-  awaitI18nAndApplyRules(nextRules)
-    .catch(async (error) => {
-      await ensureI18nReady();
-      console.warn(t("runtime.error.storedRules"), error);
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.applyError]: {
-          message: error.message || t("runtime.error.storedRules"),
-          occurredAt: new Date().toISOString()
+  // Debounce: only process storage changes every 500ms
+  if (pendingStorageChangeTimer !== null) {
+    clearTimeout(pendingStorageChangeTimer);
+  }
+
+  pendingStorageChangeTimer = setTimeout(async () => {
+    pendingStorageChangeTimer = null;
+    try {
+      const rules = await getRedirectRules();
+      if (hasRulesChange) {
+        const nextRules = changes[STORAGE_KEYS.rules].newValue || [];
+        if (!shouldSkipAppliedRuleWrite(nextRules)) {
+          await awaitI18nAndApplyRules(nextRules);
         }
-      });
-    });
+      } else {
+        await awaitI18nAndApplyRules(rules);
+      }
+    } catch (error) {
+      await ensureI18nReady();
+      console.warn("Storage change handler error:", error?.message || error);
+      try {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.applyError]: {
+            message: error.message || t("runtime.error.storedRules"),
+            occurredAt: new Date().toISOString()
+          }
+        });
+      } catch (_e) {
+        // Storage write failed, cannot record error
+      }
+    }
+  }, 500);
 });
+
+// --- I18n ---
 
 function ensureI18nReady() {
   if (!i18nReady) {
@@ -202,10 +289,19 @@ async function awaitI18nAndApplyRules(rules) {
   await prepareAndApplyRules(rules);
 }
 
+// --- Credential capture ---
+
 async function captureSourceRequest(details) {
   if (details.method === "OPTIONS") return;
 
   await ensureI18nReady();
+
+  const { globalBypass, domainBypassList } = await chrome.storage.local.get({
+    globalBypass: false,
+    domainBypassList: []
+  });
+  if (globalBypass) return;
+
   const rules = await getRedirectRules();
   const matchingRules = rules.filter((rule) => {
     if (!rule.enabled ||
@@ -216,6 +312,13 @@ async function captureSourceRequest(details) {
       return false;
     }
 
+    if (Array.isArray(domainBypassList) && domainBypassList.length > 0) {
+      const domain = getRuleDomain(rule);
+      if (domain && domainBypassList.map((d) => d.toLowerCase()).includes(domain)) {
+        return false;
+      }
+    }
+
     try {
       return buildSourceMatcher(rule.sourcePattern, rule.patternType)(details.url);
     } catch (_error) {
@@ -223,20 +326,24 @@ async function captureSourceRequest(details) {
     }
   });
 
-  if (matchingRules.length === 0) {
-    return;
-  }
+  if (matchingRules.length === 0) return;
 
-  const capturedRules = await Promise.all(
+  // Use Promise.allSettled so one failure doesn't kill all captures
+  const capturedResults = await Promise.allSettled(
     matchingRules.map((rule) => buildCapturedRule(rule, details))
   );
-  const readyCapturedRulesById = new Map(capturedRules
-    .filter((rule) => !isWaitingForSyncCapture(rule))
-    .map((rule) => [rule.id, rule]));
 
-  if (readyCapturedRulesById.size === 0) {
-    return;
-  }
+  const capturedRules = capturedResults
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+
+  const readyCapturedRulesById = new Map(
+    capturedRules
+      .filter((rule) => !isWaitingForSyncCapture(rule))
+      .map((rule) => [rule.id, rule])
+  );
+
+  if (readyCapturedRulesById.size === 0) return;
 
   const nextRules = rules.map((rule) => readyCapturedRulesById.get(rule.id) || rule);
 
@@ -254,6 +361,8 @@ async function captureSourceRequest(details) {
   }
 }
 
+// --- Rule preparation and application ---
+
 async function prepareAndApplyRules(rules, options = {}) {
   await ensureI18nReady();
   const hydratedRules = await hydrateCredentialSourceRules(rules);
@@ -261,7 +370,7 @@ async function prepareAndApplyRules(rules, options = {}) {
   const normalTabIds = [];
   const incognitoTabIds = [];
   try {
-    const tabs = await chrome.tabs.query({});
+    const tabs = await chrome.tabs.query({ windowType: "normal" });
     tabs.forEach((tab) => {
       if (tab.id) {
         if (tab.incognito) {
@@ -276,11 +385,28 @@ async function prepareAndApplyRules(rules, options = {}) {
   }
 
   const tabGroups = { normalTabIds, incognitoTabIds };
-  await applyDynamicRules(hydratedRules, tabGroups);
+
+  const { globalBypass, domainBypassList } = await chrome.storage.local.get({
+    globalBypass: false,
+    domainBypassList: []
+  });
+
+  let rulesToRegister = hydratedRules;
+  if (globalBypass) {
+    rulesToRegister = [];
+  } else if (Array.isArray(domainBypassList) && domainBypassList.length > 0) {
+    const bypassSet = new Set(domainBypassList.map((d) => d.toLowerCase()));
+    rulesToRegister = hydratedRules.filter((r) => {
+      const domain = getRuleDomain(r);
+      return !domain || !bypassSet.has(domain);
+    });
+  }
+
+  await applyDynamicRules(rulesToRegister, tabGroups);
   await clearApplyError();
   await appendDiagnosticLog("dynamic_rules_applied", "info", {
-    ruleCount: hydratedRules.length,
-    enabledRuleCount: hydratedRules.filter((rule) => rule.enabled).length
+    ruleCount: rulesToRegister.length,
+    enabledRuleCount: rulesToRegister.filter((rule) => rule.enabled).length
   });
 
   if (options.persistHydratedRules && JSON.stringify(hydratedRules) !== JSON.stringify(rules)) {
@@ -295,30 +421,16 @@ async function saveAndApplyRules(rules) {
   await ensureI18nReady();
   const savedRules = Array.isArray(rules) ? rules : [];
 
-  try {
-    const hydratedRules = await prepareAndApplyRules(savedRules);
+  const hydratedRules = await prepareAndApplyRules(savedRules);
 
-    rememberAppliedRuleWrite(hydratedRules);
-    await chrome.storage.local.set({ [STORAGE_KEYS.rules]: hydratedRules });
-    await appendDiagnosticLog("rules_saved", "info", {
-      ruleCount: hydratedRules.length,
-      enabledRuleCount: hydratedRules.filter((rule) => rule.enabled).length
-    });
+  rememberAppliedRuleWrite(hydratedRules);
+  await chrome.storage.local.set({ [STORAGE_KEYS.rules]: hydratedRules });
+  await appendDiagnosticLog("rules_saved", "info", {
+    ruleCount: hydratedRules.length,
+    enabledRuleCount: hydratedRules.filter((rule) => rule.enabled).length
+  });
 
-    return { rules: hydratedRules };
-  } catch (error) {
-    const applyError = {
-      message: error.message || t("runtime.error.apply"),
-      occurredAt: new Date().toISOString()
-    };
-
-    await chrome.storage.local.set({ [STORAGE_KEYS.applyError]: applyError });
-    await appendDiagnosticLog("rule_save_failed", "error", {
-      message: applyError.message,
-      ruleCount: savedRules.length
-    });
-    throw error;
-  }
+  return { rules: hydratedRules };
 }
 
 function rememberAppliedRuleWrite(rules) {
@@ -339,10 +451,12 @@ function shouldSkipAppliedRuleWrite(rules) {
 async function clearApplyError() {
   try {
     await chrome.storage.local.remove(STORAGE_KEYS.applyError);
-  } catch (error) {
-    console.warn(t("runtime.error.clearApply"), error);
+  } catch (_error) {
+    // Silent failure on clear
   }
 }
+
+// --- Credential hydration ---
 
 async function hydrateCredentialSourceRules(rules) {
   const hydratedRules = [];
@@ -380,7 +494,7 @@ async function hydrateCredentialSourceRule(rule) {
 
 function normalizeCredentialSourceCapabilities(rule) {
   if (normalizeCredentialSource(rule) !== CREDENTIAL_SOURCES.cookie || !rule.syncHeaders) {
-    return rule;
+    return { ...rule };
   }
 
   return {
@@ -394,21 +508,23 @@ async function hydrateFromBrowserStorage(rule) {
   try {
     const sourceUrl = getRepresentativeSourceUrl(rule.sourcePattern);
 
-    if (!sourceUrl) {
-      return rule;
-    }
+    if (!sourceUrl) return rule;
 
     const sourceOrigin = new URL(sourceUrl).origin;
     const sourceTabs = await chrome.tabs.query({ url: `${sourceOrigin}/*` });
 
-    if (sourceTabs.length === 0) {
-      return rule;
-    }
+    if (sourceTabs.length === 0) return rule;
 
     let nextRule = { ...rule };
 
     for (const sourceTab of sourceTabs) {
-      if (!sourceTab.id) continue;
+      if (!sourceTab.id || !sourceTab.url) continue;
+      try {
+        const tabProtocol = new URL(sourceTab.url).protocol;
+        if (!["http:", "https:"].includes(tabProtocol)) continue;
+      } catch (_e) {
+        continue;
+      }
 
       try {
         const [result] = await withTimeout(
@@ -472,9 +588,7 @@ async function hydrateFromBrowserStorage(rule) {
 async function hydrateFromCookies(rule) {
   const sourceUrl = getRepresentativeSourceUrl(rule.sourcePattern);
 
-  if (!sourceUrl) {
-    return rule;
-  }
+  if (!sourceUrl) return rule;
 
   const sourceOrigin = new URL(sourceUrl).origin;
   const sourceTabs = await chrome.tabs.query({ url: `${sourceOrigin}/*` });
@@ -493,6 +607,8 @@ async function hydrateFromCookies(rule) {
 }
 
 async function hydrateFromCookiesForStore(rule, sourceUrl, storeId, isIncognito) {
+  if (!sourceUrl) return rule;
+
   try {
     const queryDetails = { url: sourceUrl };
     if (storeId) {
@@ -522,14 +638,14 @@ async function hydrateFromCookiesForStore(rule, sourceUrl, storeId, isIncognito)
         incognitoSyncedCookieHeader: cookiesValue,
         incognitoLastSyncedAt: new Date().toISOString()
       };
-    } else {
-      return {
-        ...rule,
-        syncedAuthorization: authValue,
-        syncedCookieHeader: cookiesValue,
-        lastSyncedAt: new Date().toISOString()
-      };
     }
+
+    return {
+      ...rule,
+      syncedAuthorization: authValue,
+      syncedCookieHeader: cookiesValue,
+      lastSyncedAt: new Date().toISOString()
+    };
   } catch (_error) {
     return rule;
   }
@@ -587,23 +703,42 @@ async function buildCookieHeaderFromRule(rule, sourceUrl, storeId = null) {
   return selectedCookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
 }
 
+// --- Utility ---
+
 function getRepresentativeSourceUrl(sourcePattern) {
-  const normalizedPattern = String(sourcePattern || "")
+  let patternStr = String(sourcePattern || "");
+  if (patternStr.startsWith("*://")) {
+    patternStr = "http://" + patternStr.substring(4);
+  }
+  let normalizedPattern = patternStr
     .replace(/^\^/, "")
     .replace(/\$$/, "")
     .replace(/\\\./g, ".")
     .replace(/\(\.\*\??\)/g, "")
     .replace(/\(\[\^[^\]]+\]\*\??\)/g, "")
+    .replace(/https?:\/\/(\*\.)+/i, (match) => match.toLowerCase().startsWith("https") ? "https://" : "http://")
     .replace(/\*/g, "");
+
   const urlMatch = normalizedPattern.match(/https?:\/\/[^/\\\s]+(?:\/[^\\\s]*)?/);
 
-  if (!urlMatch) {
-    return "";
-  }
+  if (!urlMatch) return "";
+
+  let candidateUrl = urlMatch[0].replace(/^(https?:\/\/)\.+/, "$1");
 
   try {
-    return new URL(urlMatch[0]).href;
+    return new URL(candidateUrl).href;
   } catch (_error) {
+    return "";
+  }
+}
+
+function getRuleDomain(rule) {
+  if (!rule || !rule.sourcePattern) return "";
+  const repUrl = getRepresentativeSourceUrl(rule.sourcePattern);
+  if (!repUrl) return "";
+  try {
+    return new URL(repUrl).hostname.toLowerCase();
+  } catch (_e) {
     return "";
   }
 }
@@ -662,7 +797,7 @@ async function buildCapturedRule(rule, details) {
       missing: missingSyncs,
       source: "request"
     });
-    
+
     showToastInTab(details.tabId, "warn", `Altreurl Warning: ${nextRule.name || "Unnamed"}`, `Missing requested credentials: ${missingSyncs.join(", ")}`);
   }
 
@@ -680,10 +815,24 @@ async function buildCookieHeader(url, storeId = null) {
 
 async function showToastInTab(tabId, type, message, detail) {
   if (!tabId || tabId === -1) return;
+
+  // Skip restricted URL schemes
+  try {
+    if (tabId > 0) {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab?.url) {
+        const tabUrl = new URL(tab.url);
+        if (!["http:", "https:"].includes(tabUrl.protocol)) return;
+      }
+    }
+  } catch (_e) {
+    return;
+  }
+
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      func: (type, message, detail) => {
+      func: (toastType, toastMessage, toastDetail) => {
         const containerId = "altreurl-toast-container";
         let container = document.getElementById(containerId);
 
@@ -707,11 +856,11 @@ async function showToastInTab(tabId, type, message, detail) {
         const toast = document.createElement("div");
         let borderColor = "#10b981";
         let icon = "✅";
-        
-        if (type === "error") {
+
+        if (toastType === "error") {
           borderColor = "#ef4444";
           icon = "❌";
-        } else if (type === "warn") {
+        } else if (toastType === "warn") {
           borderColor = "#f59e0b";
           icon = "⚠️";
         }
@@ -746,10 +895,10 @@ async function showToastInTab(tabId, type, message, detail) {
           color: "#f3f4f6",
           lineHeight: "1.2"
         });
-        header.textContent = `${icon} ${message}`;
+        header.textContent = `${icon} ${toastMessage}`;
         toast.appendChild(header);
 
-        if (detail) {
+        if (toastDetail) {
           const body = document.createElement("div");
           Object.assign(body.style, {
             fontSize: "12px",
@@ -757,7 +906,7 @@ async function showToastInTab(tabId, type, message, detail) {
             lineHeight: "1.4",
             wordBreak: "break-all"
           });
-          body.textContent = detail;
+          body.textContent = toastDetail;
           toast.appendChild(body);
         }
 
@@ -781,7 +930,7 @@ async function showToastInTab(tabId, type, message, detail) {
       args: [type, message, detail]
     });
   } catch (_error) {
-    // Tab might be closed or restricted (like chrome:// URLs)
+    // Tab might be closed or restricted
   }
 }
 

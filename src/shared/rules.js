@@ -34,11 +34,15 @@ const UNSYNCED_HEADER_NAMES = new Set([
   "upgrade-insecure-requests"
 ]);
 
+function stripCRLF(value) {
+  return String(value || "").replace(/[\r\n]/g, "");
+}
+
 export function normalizeHeaderRows(headers = []) {
   return headers
     .map((header) => ({
-      name: String(header.name || "").trim(),
-      value: String(header.value || "").trim()
+      name: stripCRLF(header.name).trim(),
+      value: stripCRLF(header.value).trim()
     }))
     .filter((header) => header.name);
 }
@@ -269,6 +273,63 @@ export function isRegexSubstitutionValid(sourcePattern, targetUrl) {
   } catch (_error) {
     return false;
   }
+}
+
+/**
+ * Evaluates a test URL against a source regex pattern and target URL template.
+ * @param {string} sourcePattern
+ * @param {string} targetUrl
+ * @param {string} testInputUrl
+ * @returns {{
+ *   isValidPattern: boolean,
+ *   isMatched: boolean,
+ *   groups: Array<{ index: number, value: string }>,
+ *   resultUrl: string,
+ *   error?: string
+ * }}
+ */
+export function testRegexSubstitution(sourcePattern, targetUrl = "", testInputUrl = "") {
+  if (!sourcePattern || typeof sourcePattern !== "string") {
+    return { isValidPattern: false, isMatched: false, groups: [], resultUrl: "" };
+  }
+
+  let regex;
+  try {
+    regex = new RegExp(sourcePattern);
+  } catch (err) {
+    return { isValidPattern: false, isMatched: false, groups: [], resultUrl: "", error: err.message };
+  }
+
+  const trimmedTestUrl = (testInputUrl || "").trim();
+  if (!trimmedTestUrl) {
+    return { isValidPattern: true, isMatched: false, groups: [], resultUrl: "" };
+  }
+
+  const match = trimmedTestUrl.match(regex);
+  if (!match) {
+    return { isValidPattern: true, isMatched: false, groups: [], resultUrl: "" };
+  }
+
+  // Extract capture groups (starting from index 1)
+  const groups = [];
+  for (let i = 1; i < match.length; i++) {
+    groups.push({ index: i, value: match[i] ?? "" });
+  }
+
+  // Perform substitution: convert \1, \2 or $1, $2 in targetUrl
+  let resultUrl = String(targetUrl || "");
+  groups.forEach((g) => {
+    const slashRegex = new RegExp(`\\\\${g.index}`, "g");
+    const dollarRegex = new RegExp(`\\$${g.index}`, "g");
+    resultUrl = resultUrl.replace(slashRegex, g.value).replace(dollarRegex, g.value);
+  });
+
+  return {
+    isValidPattern: true,
+    isMatched: true,
+    groups,
+    resultUrl
+  };
 }
 
 export function convertPatternFormat(value, fromPatternType, toPatternType, fieldType) {
@@ -512,12 +573,6 @@ function addDuplicatePatternIssues(activeRules, issuesByRuleId) {
     getRuleSourceSignature,
     "rules.error.duplicateSource"
   );
-  addDuplicateRuleIssue(
-    activeRules,
-    issuesByRuleId,
-    getRuleTargetSignature,
-    "rules.error.duplicateTarget"
-  );
 }
 
 function addDuplicateRuleIssue(activeRules, issuesByRuleId, getSignature, messageKey) {
@@ -678,9 +733,15 @@ function mergeRequestHeaders(...headerGroups) {
 }
 
 function getRequestHeadersForRule(rule, isIncognito = false) {
-  const syncedHeaders = canSyncHeaders(rule) && rule.syncHeaders
+  let syncedHeaders = canSyncHeaders(rule) && rule.syncHeaders
     ? normalizeSyncedHeaders(isIncognito ? rule.incognitoSyncedHeaders : rule.syncedHeaders)
     : [];
+  if (syncedHeaders.length > 0 && rule.syncHeadersFilter) {
+    const allowedHeaders = new Set(rule.syncHeadersFilter.split(",").map(name => name.trim().toLowerCase()).filter(Boolean));
+    if (allowedHeaders.size > 0) {
+      syncedHeaders = syncedHeaders.filter(h => allowedHeaders.has(h.name.toLowerCase()));
+    }
+  }
   const syncedAuthorization = rule.syncAuthorization && (isIncognito ? rule.incognitoSyncedAuthorization : rule.syncedAuthorization)
     ? [{ name: "Authorization", value: isIncognito ? rule.incognitoSyncedAuthorization : rule.syncedAuthorization }]
     : [];
@@ -692,7 +753,7 @@ function getRequestHeadersForRule(rule, isIncognito = false) {
     : [];
   const manualCookieString = (rule.cookies || [])
     .filter(c => c.name && c.value)
-    .map(c => `${c.name}=${c.value}`)
+    .map(c => `${stripCRLF(c.name)}=${stripCRLF(c.value)}`)
     .join("; ");
   const manualCookies = manualCookieString
     ? [{ name: "Cookie", value: manualCookieString }]
